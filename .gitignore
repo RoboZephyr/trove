@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Local secrets / test data (never commit real credentials in examples)
+**/credential.json
+**/credential.enc
+*.env
+*.env.local
+
+# Test output
+coverage/
+*.log
+
+# Tauri / Rust (if GUI later)
+target/
+
+# OSS hygiene
+.envrc
