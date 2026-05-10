@@ -137,22 +137,52 @@ mcp:                          # 可选
 
 **没有 inject 步骤、没有自定义语法、没有跨 agent 适配器**。AI 直接 `Read` 文件。
 
-### 项目里引用 module 的两种方式
+### 项目里引用 module 的推荐方式：独立 `trove.md` 文件
 
-**方式 A（声明式，Claude Code 原生）**：在 `CLAUDE.md` 里写绝对路径：
+**不要把 trove 引用混进 CLAUDE.md**——CLAUDE.md 应该只放项目本身的 context（架构、约定、术语），trove 模块声明独立成 `trove.md` 文件，仿 `package.json` / `.env` 的「单文件单职责」原则。
+
+**项目根目录布局**：
+```
+my-project/
+├── CLAUDE.md          # 项目本身的描述 + 一行 @trove.md 引用
+├── trove.md           # 仅列 trove 模块引用，无叙述
+└── ... (project files)
+```
+
+**`CLAUDE.md`** 长这样：
 ```markdown
-## Services
+# My Project
+（项目介绍、架构、约定、术语……）
+
+@trove.md
+```
+
+**`trove.md`** 长这样（只有引用，无注释、无 narrative）：
+```markdown
+@/Users/zephyr/.trove/github-robozephyr/module.md
 @/Users/zephyr/.trove/minimax/module.md
 @/Users/zephyr/.trove/cloudflare/module.md
 ```
-Claude Code 启动时自动加载这些文件到 context。Cursor / Codex 同理走它们的 `@-reference` 语法。
 
-**方式 B（约定式）**：CLAUDE.md 只声明依赖：
+**这种分离的好处**：
+- CLAUDE.md 干净——重读时只看项目本身
+- trove.md 是唯一 trove 真相源——加/删 module 不动 CLAUDE.md
+- AI 一眼看出项目用哪些 trove 资源
+- 多项目对比：`diff project-a/trove.md project-b/trove.md` 直观看出资源差异
+- module 的「使用约定 / applies_to」由 module.md frontmatter 自带，不需要在项目里复述
+
+### 是否 git 跟踪 `trove.md`
+
+- **单用户项目**（个人 / 小团队同账户）→ tracked，作为项目依赖记录
+- **多用户 / OSS 项目** → trove.md gitignored（含个人绝对路径），同时维护 `trove.example.md` tracked（仅列 module 名作 manifest，新协作者照抄即可）
+
+### 备选方式（不推荐做主入口，但可补充）
+
+若需要按需 lazy load 而非启动即载，CLAUDE.md 直接写一段约定式描述也行：
 ```markdown
-## Services
-This project uses Trove modules: minimax, cloudflare
+This project uses Trove modules: minimax, cloudflare. Read ~/.trove/<name>/module.md when you need them.
 ```
-AI 看到这段，知道去 `~/.trove/minimax/` 和 `~/.trove/cloudflare/` 主动读。**这种方式更省 token**，因为不会一开始就把全部 skill 灌进 context，AI 按需 Read。
+AI 用时再 Read，省 token，但失去 Claude Code 自动加载。**适合**：模块用得少 / 启动 context 紧张。
 
 ### 凭证使用约定
 

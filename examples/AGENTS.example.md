@@ -1,69 +1,89 @@
-# Project AGENTS.md (示例：在 AI agent 上下文里引用 Trove modules)
+# Project AGENTS.md / CLAUDE.md (示例：在 AI agent 上下文里引用 Trove modules)
 
-This is a worked example of how a project's `AGENTS.md` (or `CLAUDE.md` / `.cursorrules`) references Trove modules. **Trove has no inject step**—the AI is the runtime: it reads modules from `~/.trove/` directly, fetches credentials on demand, and even configures MCP servers when needed.
+**Trove has no inject step.** AI is the runtime: it reads modules from `~/.trove/` directly, fetches credentials on demand, and configures MCP servers when needed.
 
----
+## Recommended pattern: separate `trove.md`
 
-## Pattern A — Eager load (Claude Code 原生)
+Don't pollute `CLAUDE.md` with trove details. Keep CLAUDE.md focused on the project itself, and put trove module declarations in a sibling `trove.md` file:
 
+### `CLAUDE.md`
 ```markdown
-## Services
+# My Project Name
+
+A brief description of the project. Architecture notes, conventions, terminology…
+
+@trove.md
+
+## Conventions for AI
+- Project-specific rules go here
+- (Trove module use cases live in each module's frontmatter `applies_to`, no need to duplicate)
+```
+
+### `trove.md`
+```markdown
+@/Users/zephyr/.trove/github-robozephyr/module.md
 @/Users/zephyr/.trove/minimax/module.md
 @/Users/zephyr/.trove/cloudflare/module.md
 ```
 
-Claude Code 启动时自动加载这两个 module 到 context。Cursor / Codex 用各自原生的 `@-reference` 语法（同样接受绝对路径）。**适合**：项目高频用这些服务，token 成本可接受。
+That's it. No headers, no narrative—just `@-references`. Each module's `module.md` frontmatter declares `applies_to`, so the AI knows when to use what.
 
-## Pattern B — Lazy declare（更省 token）
+### Why split?
+
+- **CLAUDE.md stays clean**—re-reading it doesn't drown in trove plumbing
+- **`trove.md` is the single source of truth** for trove deps in this project—add/remove a module without touching CLAUDE.md
+- **Cross-project visibility**: `diff project-a/trove.md project-b/trove.md` shows which Trove resources differ
+- **No duplicated narrative**: `applies_to` already lives in each module's frontmatter
+
+### Should `trove.md` be git-tracked?
+
+- **Single-user / personal projects** → track it (records project deps)
+- **Multi-user / OSS projects** → gitignore `trove.md` (contains personal absolute paths), commit `trove.example.md` instead with just the module-name list:
 
 ```markdown
-## Services
-This project uses Trove modules: `minimax`, `cloudflare`.
-- minimax for TTS / image / music / LLM (Chinese-strong)
-- cloudflare for Pages deploy & cache purge
+# trove.example.md (tracked, portable)
+Required Trove modules:
+- github-<your-account>
+- minimax
+- cloudflare
 
-When you need to use them, read `~/.trove/<name>/module.md` first for usage and gotchas.
-Credentials are at `~/.trove/<name>/credentials.json`.
+Copy this list into your own trove.md as `@~/.trove/<name>/module.md` references.
 ```
 
-AI 只在真要用某个服务时去 `Read ~/.trove/<svc>/module.md`。**适合**：项目里这些服务是「偶尔用」，不希望 base context 太大。
+---
+
+## Credential usage convention
+
+Even with `trove.md` referenced, credentials are NOT pre-exported to env. **AI fetches them on demand**:
+
+- HTTP call → `Authorization: Bearer $(jq -r .XXX_API_KEY ~/.trove/<svc>/credentials.json)`
+- Shell tool needing env (e.g. `wrangler`) → temporary `export $(jq ... ~/.trove/<svc>/credentials.json | xargs)` then invoke
+- AI decides per-task which approach fits
+
+**Why not pre-export**: avoids context pollution, minimizes blast radius, lets AI choose the right approach per task.
 
 ---
 
-## 凭证使用约定
+## MCP servers (the only resource that needs "installation")
 
-**AI 自取，不预先 export 到 env**：
-- HTTP 调用 → `Authorization: Bearer $(jq -r .XXX_API_KEY ~/.trove/<svc>/credentials.json)`
-- shell 工具（如 `wrangler` 必须读 env）→ AI 临时 `export $(jq ... ~/.trove/<svc>/credentials.json | xargs)` 再调
-- AI 自己决定哪种合适
+If a module's frontmatter has `mcp:`, the AI can merge it into your agent's MCP config the first time you use it:
 
-**为什么不预先 export**：
-- 不污染上下文 / 不浪费 token
-- Blast radius 最小（只暴露当前任务用到的 key）
-- AI 自决，比规则更灵活
+> "Add the supabase MCP server to Claude Code"
+
+The AI reads `~/.trove/supabase/module.md`, extracts the `mcp:` section, edits `~/.claude.json`. No `trove inject` tool needed.
 
 ---
 
-## MCP 服务（唯一需要「安装」的资源）
+## Adding a new module to a project
 
-如果某个 module.md 的 frontmatter 含 `mcp:` 字段（例如 stripe / supabase），**第一次使用时**让 AI 把它 merge 到 agent 的 MCP 配置：
+Just talk to the AI:
 
-> "把 `~/.trove/supabase/module.md` 里的 mcp 配置加到 Claude Code"
+> "Add minimax to this project's trove"
 
-AI 会读 module.md → 抽 mcp section → Edit `~/.claude.json` 的 mcpServers。无需 inject 工具。
+The AI:
+1. Confirms `~/.trove/minimax/` exists
+2. Reads `module.md` frontmatter to understand applies_to / required credentials
+3. Appends `@/Users/you/.trove/minimax/module.md` to `trove.md`
+4. Warns if any required credential field is empty
 
----
-
-## 想加新 module 到当前项目？
-
-直接对话即可：
-
-> "在这个项目用 minimax"
-
-AI 会：
-1. `ls ~/.trove/` 确认 minimax 存在
-2. 读 `~/.trove/minimax/module.md` 看 frontmatter（applies_to / credentials 字段）
-3. 把 `@/Users/zephyr/.trove/minimax/module.md` 写进当前项目 CLAUDE.md（Pattern A）或加一段 lazy declare（Pattern B）
-4. 提示缺失字段（如 `CLOUDFLARE_ACCOUNT_ID` 没填）
-
-**这就是「无 inject、无 init」的本质**——AI 是 runtime + configurer，工具不去抢它的活。
+This is what "AI is the runtime + configurer" looks like in practice.
