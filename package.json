@@ -1,0 +1,17 @@
+{
+  "name": "trove",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first, AI-native resource manager for AI coding agents",
+  "license": "MIT",
+  "scripts": {
+    "validate": "bun bin/trove-validate.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}
