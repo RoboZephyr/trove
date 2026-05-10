@@ -123,6 +123,14 @@ mcp:                          # 可选
 }
 ```
 
+**哪些字段必须出现在 credentials.json**：
+- 字段在 frontmatter 既无 `default:` 又非 `required: false` → **必须**列出
+- 字段有 `default:` → **可选**（缺省时 default 生效）
+- 字段标 `required: false` → **可选**
+- 整个 module 所有字段都有 default → credentials.json 文件本身可省略
+
+例如 `github-robozephyr` module 的所有 identity 字段都是公开信息且有 default，credentials.json 只需 `{}` 或不存在。
+
 - **v0.1**：明文 + 文件权限 600 + `.gitignore` 规则 `**/credentials.json`
 - **v0.2**：可选 macOS Keychain / Windows Credential Manager backend
 
@@ -331,7 +339,22 @@ trove list                       # ls 已装 modules（debug 辅助）
 
 ---
 
-## 10. v0.1 实现优先级
+## 10. Convention Adherence Log
+
+dogfood 时发现的「AI 没按约定走」/「SPEC 没说清」案例都记在这。**这是 SPEC 的活体证据**——既驱动 SPEC 修订，也告诉外部用户产品在严肃迭代。
+
+格式：`日期 · 触发场景 · 问题 · 修复（commit hash）`
+
+### 2026-05-11
+
+- `trove validate --all` 报 `github-*` module credentials.json「缺字段」，但那些字段在 frontmatter 有 `default:`。**问题**：SPEC 未明确「带 default / 标 required: false 的字段是否必须在 credentials.json 重申」。**修复**：SPEC §2.2 加「哪些字段必须出现」规则；validate 逻辑跳过有 default 的字段。
+- `trove validate --examples` 报 `examples/*` 没 credentials.json。**问题**：例子目录用 `credentials.example.json` 占位避免真凭证入库，但 SPEC 没说 validate 在 examples 场景下该接受 `.example.json` 作为 schema 验证源。**修复**：validate 找不到 credentials.json 时回落到 credentials.example.json；SPEC 默认接受这个 fallback。
+
+（后续 dogfood 发现的案例追加在此节，按倒序）
+
+---
+
+## 11. v0.1 实现优先级
 
 **今天就能用**（已经做完）：
 - `~/.trove/` 目录约定
