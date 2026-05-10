@@ -62,6 +62,8 @@ chmod 600 ~/.trove/minimax/credentials.json
 
 # 3. Fill in your real credentials
 $EDITOR ~/.trove/minimax/credentials.json
+# ⚠️ This is the v0.1 fallback. v0.2 ships `trove ui` with AI-guided credential entry
+# that avoids leaking secrets into shell history / screenshots.
 
 # 4. Reference it from any project's CLAUDE.md
 echo '@/Users/you/.trove/minimax/module.md' >> /path/to/project/CLAUDE.md
@@ -71,6 +73,8 @@ cd /path/to/project && claude
 ```
 
 The AI now knows MiniMax: how to call it, what gotchas to avoid, where to find the key.
+
+For multi-account scenarios (e.g. multiple GitHub or Cloudflare accounts), make multiple named modules — see `examples/github-robozephyr/` and `examples/github-a404coder/` for a worked example.
 
 ## License
 

@@ -126,6 +126,11 @@ mcp:                          # 可选
 - **v0.1**：明文 + 文件权限 600 + `.gitignore` 规则 `**/credentials.json`
 - **v0.2**：可选 macOS Keychain / Windows Credential Manager backend
 
+**录入方式**：
+- **首选 Web UI**（`trove ui` → Configure 按钮）—— 字段自动校验、AI 引导式录入、test connection 一键验证。**这是 v0.2 的一等公民流程**，CLI 直接编辑文件是 fallback
+- **CLI fallback**（`$EDITOR ~/.trove/<svc>/credentials.json`）—— 急用、无 Web UI 启动时使用。但承担明文暴露在终端历史、截屏、远程协作时同事看到的风险
+- **绝不**：在 shell 里 `echo "KEY=xxx" > file`（命令历史里就是明文）
+
 ---
 
 ## 3. AI 怎么用 Trove（runtime 行为）
@@ -195,10 +200,17 @@ AI 会：
 
 1. **Modules 列表**——按 category 分组的卡片视图，开关启用 / 编辑 / 删除 / 「在哪些项目用了」反查
 2. **Module 详情 / 编辑器**
-   - 左：根据 frontmatter `credentials` 自动生成的表单（编辑凭证值）
+   - 左：根据 frontmatter `credentials` 自动生成的表单（编辑凭证值）—— password 字段遮蔽、URL 字段格式校验、help 文本带「去哪获取」链接
    - 右：skill 正文 markdown 编辑器（实时 preview）
    - 底部：「Install MCP」「Test connection」「Add to current project」三个动作按钮
-3. **AI Authoring**（核心差异化，§5）
+3. **AI-Assisted Credential Entry**（§6 之外的另一条 AI 流，专给凭证录入）
+   - 用户点击 module 卡片的「Configure」→ 弹出 AI 对话面板
+   - AI 引导：「fal.ai 需要 `<key_id>:<key_secret>` 格式的 key，去 https://fal.ai/dashboard/keys 拿；如果你还没账号，要不要我说一下 free tier 限制」
+   - 用户粘贴 → AI 校验格式（fal 必须有冒号 / 长度合理 / Bearer prefix 不该带）→ 报错就给具体修复建议
+   - AI 自动调一次 test endpoint（如果 module 声明了 `test_request`）→ 把 response 翻给用户看
+   - 通过后写入 `~/.trove/<svc>/credentials.json`（600 权限）
+   - **意义**：CLI 填密钥本质是反模式（终端历史泄漏、明文截屏、字段对错全靠肉眼）。Web UI + AI 引导把「正确录入」从工具问题变成对话问题
+4. **AI Authoring**（创建新 module，§6）
 
 **v0.2 加**：Marketplace（社区 modules 浏览/安装）。
 

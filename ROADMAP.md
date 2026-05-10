@@ -18,11 +18,12 @@ Trove is a hobby OSS project. There is no fixed timeline. Items are roughly orde
 
 ## v0.2 — Web UI
 
-**Goal**: managing modules visually is faster than editing markdown by hand.
+**Goal**: managing modules visually is faster than editing markdown by hand. **Critically: credentials are entered through Web UI, never through `$EDITOR` on credentials.json — file editing leaks plaintext via shell history, screenshots, and pair-programming sessions.**
 
 - [ ] `trove ui` — local web dashboard (Bun + Hono + React, single binary)
 - [ ] Modules list view (cards by category, "used in which projects" lookup)
 - [ ] Module editor (auto-form from frontmatter `credentials` schema, side-by-side skill markdown editor)
+- [ ] **AI-Assisted Credential Entry** (per-module Configure flow): AI guides "where to get the key", validates format on paste, auto-runs test request if module declares one, writes to `credentials.json` only on success. This replaces all CLI-based credential editing.
 - [ ] "Install MCP for this module" one-click action
 - [ ] "Add to current project" — appends `@~/.trove/<name>/module.md` to a project's CLAUDE.md
 
