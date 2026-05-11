@@ -349,6 +349,7 @@ dogfood 时发现的「AI 没按约定走」/「SPEC 没说清」案例都记在
 
 - `trove validate --all` 报 `github-*` module credentials.json「缺字段」，但那些字段在 frontmatter 有 `default:`。**问题**：SPEC 未明确「带 default / 标 required: false 的字段是否必须在 credentials.json 重申」。**修复**：SPEC §2.2 加「哪些字段必须出现」规则；validate 逻辑跳过有 default 的字段。
 - `trove validate --examples` 报 `examples/*` 没 credentials.json。**问题**：例子目录用 `credentials.example.json` 占位避免真凭证入库，但 SPEC 没说 validate 在 examples 场景下该接受 `.example.json` 作为 schema 验证源。**修复**：validate 找不到 credentials.json 时回落到 credentials.example.json；SPEC 默认接受这个 fallback。
+- **首次「AI is the runtime」实战 validation**：classics-learning 项目里另一个 Claude session 实现 `/api/advise` 顶端 LLM 代理，**自然地**用 `jq -r .MINIMAX_API_KEY ~/.trove/minimax/credentials.json` 抽值塞 `.dev.vars`——没 hallucinate `process.env`，没要求预先 export。**这是产品核心假设的第一次实战证实**。**衍生发现**：边缘运行时（CF Pages / Workers / Vercel / Fly）不能在 request time 读 `~/.trove/`，需要「Trove → 平台 secrets」桥接模式（local 写 `.dev.vars`、prod `jq | wrangler secret put` 管道）。**修复**：cloudflare module 加「Bridging Trove credentials → CF Pages / Workers secrets」专节，把这个 canonical 桥接固化到 skill。
 
 （后续 dogfood 发现的案例追加在此节，按倒序）
 
