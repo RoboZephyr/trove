@@ -34,13 +34,31 @@ mcp:
 
 ## ⚠️ Critical Constraints
 
-1. **`from` domain MUST be verified** — Resend rejects emails from any unverified domain with `422 The 'from' domain is not verified`. **Workaround for first test**: use `onboarding@resend.dev` (Resend's shared sandbox); switch to your domain only after `resend.com/domains` shows status `verified` and DKIM/SPF green
-2. **DKIM propagation takes 5min–24h** after adding the TXT records. Adding the records → marking "verified" in Resend dashboard isn't instant. **First send after verification still occasionally fails** if Resend's check ran during a propagation gap; retry in a few minutes
-3. **Free tier limits**: 100 emails/day, 3000/month, **only to your own verified address** without onboarding gate. Verify a domain → can send to anyone
-4. **`react` and `html` are mutually exclusive** in send payload — pass one, not both. `text` can coexist with either as a plain-text fallback
-5. **Reply-To and From are different concepts** — `from` is the visible sender; `reply_to` is where replies go. Most setups want `from: hello@brand.com` + `reply_to: real-person@brand.com`
-6. **Test addresses bypass real delivery** — `delivered@resend.dev`, `bounced@resend.dev`, `complained@resend.dev` simulate the corresponding outcomes for webhook testing. Don't use these in prod
-7. **Idempotency keys** are supported (`Idempotency-Key` header) — use them for retries to avoid double-sending after timeouts
+1. **TWO INDEPENDENT GATES — FROM check + TO check**, both must pass. Easy to confuse because they have separate sandboxes.
+
+   **Gate A · FROM domain check**
+   - Default: `from:` must be at a domain you've verified in Resend (DKIM/SPF/DMARC green)
+   - **Bypass**: use `from: onboarding@resend.dev` (Resend's shared sandbox FROM-domain). Always-allowed for testing
+   - Unverified custom from → `422 The 'from' domain is not verified`
+
+   **Gate B · TO recipient check (free tier only)**
+   - Default on free tier: `to:` must be one of: (a) your Resend account login email, (b) Resend test addresses (`delivered@resend.dev` etc.)
+   - **Bypass**: verify ANY ONE of your domains in Resend → unlocks sending to anyone
+   - Wrong recipient on free tier → `422 You can only send testing emails to your own email address (xxx@gmail.com), or our test addresses`
+
+   **`onboarding@resend.dev` only bypasses Gate A, not Gate B** ← the most common confusion. To test sending to arbitrary external addresses (e.g. validating Email Routing on another domain), you must verify a sending domain first.
+
+2. **Verify a sending subdomain, not the root domain** — if your root domain `example.com` is already on Google Workspace / Microsoft 365 with its own SPF/DKIM/DMARC, **don't add Resend's records to root**. Instead create a subdomain like `send.example.com` and verify that. Resend's TXT records won't conflict with Workspace email routing for the same domain. Same UX; cleaner separation.
+
+3. **DKIM propagation takes 5min–24h** after adding the TXT records. Adding records → "verified" in Resend dashboard isn't instant. First send after verification occasionally fails if Resend's checker ran during a propagation gap; retry in a few minutes.
+
+4. **`react` and `html` are mutually exclusive** in send payload — pass one, not both. `text` can coexist with either as a plain-text fallback (recommended for spam scoring).
+
+5. **Reply-To and From are different concepts** — `from` is the visible sender (must pass Gate A); `reply_to` is where replies go (no domain gate). Most setups: `from: hello@brand.com` + `reply_to: real-person@brand.com`.
+
+6. **Test addresses bypass real delivery** — `delivered@resend.dev`, `bounced@resend.dev`, `complained@resend.dev` simulate the corresponding webhook events but **never deliver an actual email anywhere**. Useful for testing your handler logic, useless for verifying inbox routing.
+
+7. **Idempotency keys** are supported (`Idempotency-Key` header) — use them for retries to avoid double-sending after timeouts.
 
 ---
 
@@ -171,11 +189,12 @@ await resend.batch.send(
 ## Domains
 
 ```typescript
-// Add a new domain (then add the printed DNS records to your DNS provider)
-const { data } = await resend.domains.create({ name: 'trovekit.dev' });
+// Add a sending subdomain (recommended over root if you already use Workspace/M365 on root)
+const { data } = await resend.domains.create({ name: 'send.example.com' });
 // data.records: [{ type: 'TXT', name: '...', value: '...' }, ...]
+// usually: 1 SPF TXT, 2 DKIM TXT (or CNAME), optionally 1 DMARC TXT
 
-// Verify (call after DNS records propagate, may take 5min-24h)
+// Verify (call after DNS records propagate, 5min-24h)
 await resend.domains.verify({ id: data.id });
 
 // List + check status
@@ -183,11 +202,42 @@ const { data: all } = await resend.domains.list();
 // each has status: 'verified' | 'pending' | 'failed' | 'temporary_failure'
 ```
 
-If using Cloudflare DNS, the workflow is:
-1. `resend.domains.create({ name })` → get DNS records to add
-2. Use cloudflare module's DNS API to create the TXT/MX records in CF
-3. `resend.domains.verify({ id })` after propagation
-4. Use `from: '...@your-domain'` in sends
+### Canonical "verify a sending domain via Cloudflare" workflow (Trove cross-module)
+
+This is THE end-to-end automation Trove enables — once a sending subdomain is verified, both Gate A (FROM) and Gate B (TO arbitrary recipients on free tier) are unlocked.
+
+```typescript
+// 0. Pick a sending subdomain that won't conflict with your existing email setup
+//    Good: send.example.com, mail.example.com, notifications.example.com
+//    Bad:  example.com itself if it's on Google Workspace / M365
+
+// 1. Tell Resend about it, get DNS records to add
+const { data: domain } = await resend.domains.create({ name: 'send.example.com' });
+
+// 2. Use cloudflare module's DNS API to write each record into CF
+const CF_TOKEN = jq('.CLOUDFLARE_API_TOKEN', '~/.trove/cloudflare/credentials.json');
+const ZONE = jq('.CLOUDFLARE_ZONE_ID', '~/.trove/cloudflare/credentials.json');
+for (const r of domain.records) {
+  await fetch(`https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${CF_TOKEN}` },
+    body: JSON.stringify({ type: r.type, name: r.name, content: r.value, ttl: 1 }),
+  });
+}
+
+// 3. Wait for propagation (TXT typically 5-15 min on CF; up to 24h elsewhere)
+//    Then trigger Resend re-check
+await new Promise(r => setTimeout(r, 5 * 60_000));
+await resend.domains.verify({ id: domain.id });
+
+// 4. Confirm
+const updated = await resend.domains.get({ id: domain.id });
+console.log(updated.status);    // hopefully 'verified'
+
+// 5. Now from: 'hello@send.example.com' to: anywhere is allowed
+```
+
+**This is exactly the kind of multi-step task Trove eliminates from "human clicks through 3 dashboards" to "AI does it given the modules"**.
 
 ---
 
