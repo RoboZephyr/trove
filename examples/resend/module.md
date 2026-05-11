@@ -17,11 +17,15 @@ credentials:
   RESEND_API_KEY:
     type: password
     required: true
-    help: "https://resend.com/api-keys — start with `re_` prefix"
+    help: "Sending-only key for production sends. https://resend.com/api-keys → permission: Sending access"
+  RESEND_ADMIN_KEY:
+    type: password
+    required: false
+    help: "Full access key for one-time admin ops (create/verify domains, manage audiences, etc.). Create as a separate key; revoke or keep on file per your security policy."
   RESEND_FROM_EMAIL:
     type: text
     required: false
-    help: "Default `From:` address. Must be at a domain you've verified in https://resend.com/domains. Use `onboarding@resend.dev` for the first test before verifying your own domain."
+    help: "Default `From:` address (must be at a verified domain). Use `onboarding@resend.dev` until your own domain is verified."
 
 mcp:
   command: npx
@@ -191,16 +195,26 @@ await resend.batch.send(
 ```typescript
 // Add a sending subdomain (recommended over root if you already use Workspace/M365 on root)
 const { data } = await resend.domains.create({ name: 'send.example.com' });
-// data.records: [{ type: 'TXT', name: '...', value: '...' }, ...]
-// usually: 1 SPF TXT, 2 DKIM TXT (or CNAME), optionally 1 DMARC TXT
 
-// Verify (call after DNS records propagate, 5min-24h)
+// data.records actual shape (verified 2026-05-11 on send.roboz.dev):
+// [
+//   { record: "DKIM", name: "resend._domainkey.send", type: "TXT", value: "p=MIGfMA0..." },
+//   { record: "SPF",  name: "send.send",              type: "MX",  value: "feedback-smtp.us-east-1.amazonses.com", priority: 10 },
+//   { record: "SPF",  name: "send.send",              type: "TXT", value: "v=spf1 include:amazonses.com ~all" }
+// ]
+
+// Verify (call after DNS records propagate, typically 30-90s on CF, up to 24h elsewhere)
 await resend.domains.verify({ id: data.id });
 
 // List + check status
 const { data: all } = await resend.domains.list();
 // each has status: 'verified' | 'pending' | 'failed' | 'temporary_failure'
 ```
+
+**⚠️ Naming convention surprise** (saved many minutes of confused debugging on first try):
+- For a registered domain `send.example.com`, **Resend's record `name` values are relative to the PARENT zone** (`example.com`), not relative to the registered subdomain
+- That's why DKIM appears as `resend._domainkey.send` (so the final FQDN is `resend._domainkey.send.example.com`)
+- The SPF MX/TXT come back as **`send.send`** (not just `send`) — this is INTENTIONAL: Resend uses `send.<your-subdomain>` as a separate sub-subdomain for SPF isolation (same pattern SendGrid uses with `em<id>.<domain>`). Don't "fix" this; the records are correct as-returned.
 
 ### Canonical "verify a sending domain via Cloudflare" workflow (Trove cross-module)
 
