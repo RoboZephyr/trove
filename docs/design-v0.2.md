@@ -1,89 +1,103 @@
 # Trove v0.2 Web UI — Design Decisions
 
-**Status**: Draft (2026-05-11), pending review before scaffolding starts.
+**Status**: Draft (revised 2026-05-11, AI-chat dropped).
+**Pivot from earlier draft**: NO embedded AI features in Web UI. The user's existing AI agent (Claude Code / Cursor / etc.) is where AI work happens. Web UI is npmjs.com-equivalent for Trove: browse, view, simple CRUD.
 
 ## Goal
 
-Ship a minimum-viable `trove ui` that delivers **one killer flow not possible with CLI alone**: AI-guided credential entry + AI Authoring From-URL. Modules list + editor are supporting cast.
+Web UI shows **what modules you have, what each can do, and lets you adjust their values via simple forms**. It's a visualization + onboarding layer, not an AI surface.
 
-## Stack (opinionated)
+## Stack
 
-| Layer | Pick | Why |
-|---|---|---|
-| Runtime | **Bun** | Already used for `trove-validate`; single binary out via `bun build --compile`; bundled TypeScript |
-| HTTP framework | **Hono** | Tiny (~14KB), Bun-native, JSX support for server-rendered HTML, native SSE for AI streaming |
-| Frontend | **HTMX + Tailwind (CDN) + vanilla TS for AI chat** | No build step; server renders all forms / lists / details; HTMX swaps fragments; AI chat panel uses SSE + a 50-line vanilla TS handler |
-| Markdown editor | **textarea + server-side preview via `marked`** | Simpler than EasyMDE / Monaco; "Preview" tab is a fragment swap |
-| Auth | **localhost-only origin check** | refuse if request `Host:` isn't `127.0.0.1` or `localhost`; v1.0 may add per-user token |
-| Distribution | **`bun build --compile`** → single binary `trove-ui` | `bun install` not required by end-users |
+| Layer | Pick |
+|---|---|
+| Runtime | **Bun** |
+| HTTP framework | **Hono** (with JSX for server-side rendering) |
+| Frontend | **HTMX + Tailwind CDN** (no build step) |
+| Markdown rendering | server-side via `marked` |
+| Auth | localhost-only origin check |
+| Distribution | `bun build --compile` → single binary `trove-ui` |
 
-**Explicitly NOT using**: React (build step overhead), Vite (extra tool), Tauri/Electron (defeats local-first-web rationale), zod (overkill for our schema needs—handwritten validators do).
+**Explicit non-picks**: React, Vite, Tauri/Electron, zod, SSE, embedded LLM, chat UI library.
 
-## Architecture
+## Architecture (drastically simpler)
 
 ```
-                            +----------------+
-                            |  trove ui CLI  |
-                            |  (bun + hono)  |
-                            +-------+--------+
-                                    |
-                            +-------v---------+
-                            |   HTTP server   |
-                            |   :7821         |
-                            +-------+---------+
-                                    |
-       +----------------+-----------+------------+-------------------+
-       |                |                        |                   |
-   GET /              GET /api/modules     POST /api/ai/new       SSE /api/ai/chat
-   (HTML shell)       GET /api/modules/:n  (URL → draft module)   (credential entry guide)
-                      PATCH /api/modules/:n
-                      
-                                    |
-                          +---------v----------+
-                          |  ~/.trove/         |
-                          |  (filesystem)      |
-                          +--------------------+
++----------------+
+|  trove ui CLI  |
++-------+--------+
+        |
++-------v-----------+
+|  Hono server :7821 |
++-------+-----------+
+        |
+GET /                   → home (modules grid)
+GET /m/:name            → module detail
+PATCH /api/m/:name/cred → save credentials.json values (form post)
+GET /examples           → browse repo's examples/ (community modules later)
+POST /api/install       → copy an example to ~/.trove/<name>/
+        |
++-------v-----------+
+|   ~/.trove/        |
++-------------------+
 ```
 
-Server reads/writes `~/.trove/<name>/module.md` and `~/.trove/<name>/credentials.json`. Frontend never sees raw credential values for password-type fields after initial entry — server returns masked (`••••••••`) in GETs, accepts plaintext only on PATCH.
+Everything server-side rendered. HTMX swaps fragments for inline edits. No client state.
 
-## v0.2 Scope (ruthlessly narrow)
+## v0.2 Scope (ruthlessly narrow, ~500 LOC)
 
-### Shipping in v0.2
-1. **Modules list view** — read-only, cards by category (~150 LOC)
-2. **Module detail editor** — auto-form from frontmatter `credentials` schema + skill markdown editor (~300 LOC)
-3. **AI-guided credential entry** — side chat panel, uses `~/.trove/anthropic/credentials.json` for LLM (~250 LOC + prompt design)
-4. **AI Authoring: From URL only** — paste docs URL → AI generates module.md draft → preview/edit/save (~200 LOC + prompt design)
+### Four screens
 
-### Deferred to v0.3
-- AI Authoring: From .env / From Description flows
-- Refinement loop (failure case → diff suggestion)
-- "Where is this module used" reverse lookup
-- Test connection button (needs `test:` frontmatter field — SPEC change)
+1. **Home / Modules grid** — cards per installed module grouped by category. Each card: name, version, description, credentials-filled status indicator, applies_to tags
+2. **Module detail** — rendered frontmatter (metadata + applies_to as chips + credentials schema as a form), rendered skill.md body (marked), "edit credentials" inline form (HTMX fragment swap)
+3. **Examples gallery** — browse this repo's `examples/` directory; clicking an example opens preview + "Install to ~/.trove/" button
+4. **Empty / setup state** — when `~/.trove/` is empty, show setup wizard: "Welcome. Browse Examples to install your first module."
 
-### Deferred to v1.0
-- Marketplace (community modules)
-- Multi-user / team mode
-- Cloud sync
+### What v0.2 does NOT do
+
+- ❌ AI chat / credential guidance / authoring (user does this in their AI agent)
+- ❌ Marketplace (community module discovery — v0.3)
+- ❌ Test connection button (needs `test:` frontmatter field — SPEC change first)
+- ❌ "Where is this module used" reverse lookup (v0.3)
+- ❌ Multi-user / team features (never)
+
+### How users actually do "AI Authoring" / credential guidance
+
+**In their AI agent's chat**, not in Web UI:
+- "Claude, write me a Trove module for upstash" → AI reads SPEC + an example module, generates one, saves to `~/.trove/upstash/module.md`
+- "Claude, I have a new API key for resend, walk me through where to put it" → AI reads resend module frontmatter, asks the user the values per-field, writes credentials.json
+- "Claude, my latest minimax send to gmail failed, fix the skill" → AI updates `~/.trove/minimax/module.md`'s skill body based on failure
+
+**The Web UI does NOT need to embed any of this**. The agent IS the AI.
+
+## Optional v0.2.x CLI sidecars (NOT Web UI)
+
+These are 30-line Bun scripts, can ship anytime separately:
+- `trove ai new <url>` — for users without an interactive AI agent; fetches URL + LLM call + writes module draft. Optional, not required for v0.2 release.
+- `trove install <name-or-path>` — copy from repo's examples/ or a git URL to ~/.trove/. Could also just be a Web UI button.
 
 ## Total budget
 
-**~900 LOC** for v0.2 (server + client + prompts). Single-evening-of-real-work scope (≠ session, real-world hours).
+**~500 LOC** for v0.2 (server + HTMX templates + Tailwind). Single-evening work.
 
 ## Open questions for review
 
-1. **LLM provider for AI features** — default to `@trove:anthropic` (user's own credentials). Fallback: prompt user to install anthropic module first. Is this acceptable, or should we also accept openrouter as fallback?
-2. **Frontend served as static or via Hono** — leaning Hono served (simpler dev, single binary). OK?
-3. **Where to put frontend source** — proposed: `site-ui/` directory in the repo (distinct from `site/` which is the static landing). OK or different name?
-4. **Hot reload during dev** — skip? Or use `bun --hot`? Leaning skip for now (page refresh is fine).
-5. **CSS framework** — Tailwind CDN vs handwritten. Tailwind CDN bloats page slightly but speeds dev 5×. Lean Tailwind.
+1. **Frontend directory name** — `site-ui/`? `ui/`? `dashboard/`? (distinct from `site/` landing). Lean `ui/`.
+2. **Examples gallery source** — read from this repo's `examples/` directory at runtime (requires Web UI to know its install location) vs bundle examples into the binary at build time. Lean bundled (cleaner, works offline).
+3. **Credential form values** — never round-trip plaintext back to browser after first save. GET returns masked (`••••••••`); PATCH accepts new plaintext, overwrites. OK?
+4. **Modules grid empty state** — auto-suggest installing the most popular 3 examples (minimax, cloudflare, anthropic) as a "Quick start"? Or just show empty + link to examples?
+5. **Read-only mode** — query string `?readonly=true` to disable all writes (useful for screencast / demo / sharing). Worth supporting in v0.2? Lean no, defer.
 
 ## Risks
 
-- **Prompt quality for AI Authoring** is the #1 success factor. The generated module.md must pass `trove validate` AND read like the hand-written examples (gotchas-first, real code, calls out pitfalls). Will need 3-5 iterations to dial in the system prompt. Allocate time for this.
-- **AI chat UX** can feel clunky if streaming is slow or errors are unclear. Aim for <2s to first token; on LLM error show "retry" button not a wall of stack trace.
-- **Port collision** on 7821 → fall back to 7822, 7823, etc. (open question #4 in SPEC).
+- **Looking too sparse** — without AI chat, Web UI might feel "just a viewer". Mitigate with rich detail view (good typography, applies_to chips, syntax-highlighted skill body, credentials-filled indicators)
+- **Tab switching back to AI agent** — user has to leave Web UI to do AI tasks. This is fine — Trove's pitch is "AI is the runtime", consistent
+- **Module install UX** — clicking "Install" needs to (a) copy module.md to ~/.trove/ (b) prompt to fill credentials (c) reload Modules grid. Three steps, design carefully.
 
 ## Next step after this doc is approved
 
-Move Task #1 → completed, start Task #2 (scaffolding).
+Task #1 → completed.
+Task #5 (AI chat panel) → **DROPPED** (matches this revised scope).
+Task #6 (AI Authoring From-URL) → **DROPPED from Web UI scope**, re-filed as optional v0.2.x CLI sidecar.
+Tasks #2/#3/#4 stay but smaller (no AI panel integration).
+New Task: "Build Examples gallery + install flow" (~100 LOC).
