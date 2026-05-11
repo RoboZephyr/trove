@@ -298,11 +298,11 @@ AI 会：
 **手工方式**（v0.1 启动期）：
 1. `mkdir ~/.trove`
 2. 按服务建子目录
-3. 把 `.personal-data/credentials/idea-business.env` 中各服务的 env 行拆到对应 `<svc>/credentials.json`
-4. 把 `.personal-data/credentials/idea-business-api-guide.md` 各 H2 章节抽到对应 `<svc>/module.md`，加 frontmatter
+3. 把 `.personal-data/credentials/<env-file>.env` 中各服务的 env 行拆到对应 `<svc>/credentials.json`
+4. 把 `.personal-data/credentials/<api-guide>.md` 各 H2 章节抽到对应 `<svc>/module.md`，加 frontmatter
 5. 删除（或保留）原 `.personal-data` 文件
 
-**AI 辅助方式**（一旦 §5 Web UI + AI Authoring 跑通）：在 web UI「From .env」里粘 `idea-business.env` 内容 → AI 自动批量生成 modules 骨架 → 用户审稿。**完全没必要写 `migrate-from-personal-data` 命令**，从 web UI 走更顺。
+**AI 辅助方式**（一旦 §5 Web UI + AI Authoring 跑通）：在 web UI「From .env」里粘 `.env` 文件内容 → AI 自动批量生成 modules 骨架 → 用户审稿。**完全没必要写 `migrate-from-personal-data` 命令**，从 web UI 走更顺。
 
 ---
 
@@ -354,7 +354,7 @@ dogfood 时发现的「AI 没按约定走」/「SPEC 没说清」案例都记在
 
 - `trove validate --all` 报 `github-*` module credentials.json「缺字段」，但那些字段在 frontmatter 有 `default:`。**问题**：SPEC 未明确「带 default / 标 required: false 的字段是否必须在 credentials.json 重申」。**修复**：SPEC §2.2 加「哪些字段必须出现」规则；validate 逻辑跳过有 default 的字段。
 - `trove validate --examples` 报 `examples/*` 没 credentials.json。**问题**：例子目录用 `credentials.example.json` 占位避免真凭证入库，但 SPEC 没说 validate 在 examples 场景下该接受 `.example.json` 作为 schema 验证源。**修复**：validate 找不到 credentials.json 时回落到 credentials.example.json；SPEC 默认接受这个 fallback。
-- **首次「AI is the runtime」实战 validation**：classics-learning 项目里另一个 Claude session 实现 `/api/advise` 顶端 LLM 代理，**自然地**用 `jq -r .MINIMAX_API_KEY ~/.trove/minimax/credentials.json` 抽值塞 `.dev.vars`——没 hallucinate `process.env`，没要求预先 export。**这是产品核心假设的第一次实战证实**。**衍生发现**：边缘运行时（CF Pages / Workers / Vercel / Fly）不能在 request time 读 `~/.trove/`，需要「Trove → 平台 secrets」桥接模式（local 写 `.dev.vars`、prod `jq | wrangler secret put` 管道）。**修复**：cloudflare module 加「Bridging Trove credentials → CF Pages / Workers secrets」专节，把这个 canonical 桥接固化到 skill。
+- **首次「AI is the runtime」实战 validation**：一个下游项目里另一个 Claude session 实现 `/api/advise` 顶端 LLM 代理，**自然地**用 `jq -r .MINIMAX_API_KEY ~/.trove/minimax/credentials.json` 抽值塞 `.dev.vars`——没 hallucinate `process.env`，没要求预先 export。**这是产品核心假设的第一次实战证实**。**衍生发现**：边缘运行时（CF Pages / Workers / Vercel / Fly）不能在 request time 读 `~/.trove/`，需要「Trove → 平台 secrets」桥接模式（local 写 `.dev.vars`、prod `jq | wrangler secret put` 管道）。**修复**：cloudflare module 加「Bridging Trove credentials → CF Pages / Workers secrets」专节，把这个 canonical 桥接固化到 skill。
 - **Web UI 定位重新校准**：之前把「AI-Assisted Credential Entry」当 Web UI 独有的 killer feature。**反思后这是错的**——chat 本身就是 entry interface，任何 AI agent 都能完成「引导拿 key → 校验 → test → 写盘」。Web UI 真正独有的价值是**可视化 / browse / 反查「哪些项目用了这个 module」/ marketplace**，不是 credential entry。**修复**：§5 删除「AI-Assisted Credential Entry」作为 Web UI 一级视图的描述，改为「chat 是 entry，Web UI 是 visualization」。ROADMAP v0.2 中该项依然保留但定位为「Web UI 上的可视化版本」，不是必经入口。
 - **域名管理是 Trove 的核心 use case**：跨项目复用（一个 CF 账号 → N 个项目的域名）+ 价值密度高（每次买域名都是仪式感任务）+ 步骤多（search → buy → DNS → Pages 绑 → SSL → Email Routing）。**修复**：cloudflare module 加「AI-driven domain workflow」整节，给出完整 API 调用序列 + 三件人必须做的事（确认价格 / 点击 email 验证 / 首次填支付方式）+ 错误码表。AI 看到 module 后即可端到端执行，**人类只需说「买 trove.dev」**。这是 Trove 「让 AI 替你管账户」愿景的第一个完整实例。
 - **whois 检查方法在 `.dev` / `.app` 上失效（重要教训）**：用 `whois <domain> | grep "creation date"` 判断域名可用性在 `.dev` / `.app` / `.page` 这些 Google 注册的 TLD 上**100% 假阳性**——这些 TLD 出于隐私不公开 creation date 字段。trove.dev / trove.app 因此被误判为 available，直到 CF dashboard 才显示「is not available」。**正确方法**：用 `dig +short NS <domain>`——返回 nameserver 即已注册，空即可用。已用此法重扫，发现 trove.dev / trove.app 实际都早被 park。**修复**：cloudflare module「AI-driven domain workflow」加 §0 「Availability check — use DNS NS lookup, not whois」警告 + 一行 bash 标准做法。**教训**：任何「靠脚本判断 OSS 资源是否存在」的逻辑都要交叉验证多源——单一信号源在隐私敏感 TLD / 注册局上靠不住。
@@ -378,7 +378,7 @@ dogfood 时发现的「AI 没按约定走」/「SPEC 没说清」案例都记在
 
 **第一周**：
 - 再补 3 个 module（anthropic / openai / supabase）凑齐 v0.1 高频包
-- 在 classics-learning + idea-business 真实 dogfood，记录 skill.md 哪里写漏了
+- 在多个下游项目真实 dogfood，记录 skill.md 哪里写漏了
 - 写 `trove validate` ~30 行，校验 frontmatter 完整性
 
 **第一个月**（核心产品）：
