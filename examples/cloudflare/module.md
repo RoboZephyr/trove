@@ -43,6 +43,18 @@ credentials:
 
 ## Pages 部署（静态站最常用）
 
+**⚠️ Pages 项目第一次部署的坑**：wrangler **不会自动创建** Pages project。直接 `wrangler pages deploy --project-name <new>` 会报 `Project not found (code 8000007)`。**必须先显式 API 建 project**：
+
+```bash
+# Step 0 (first time only): create the project via API
+curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/pages/projects" \
+  -H "Authorization: Bearer $CF_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"my-site","production_branch":"main"}'
+```
+
+之后才能 deploy：
+
 ```bash
 # Wrangler CLI（推荐用法，自动读 CLOUDFLARE_API_TOKEN env）
 npx wrangler pages deploy ./dist \

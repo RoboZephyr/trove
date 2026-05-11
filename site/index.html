@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trove — local-first AI agent resource manager</title>
+<meta name="description" content="One ~/.trove/ directory shared across all your AI coding projects. No inject step. No cross-agent adapters. AI is the runtime.">
+<style>
+  :root {
+    --fg: #1a1a1a; --bg: #fafaf7; --muted: #6b6b6b; --accent: #b3431a;
+    --code-bg: #f0eee8; --border: #d8d5cd;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fg: #e8e6e0; --bg: #14130f; --muted: #9b9890; --accent: #d97f4f;
+      --code-bg: #1f1d18; --border: #2e2b25;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 4rem 1.5rem; max-width: 720px; margin-inline: auto;
+    font: 16px/1.6 ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    color: var(--fg); background: var(--bg);
+  }
+  h1 { font-size: 2.4rem; margin: 0 0 0.5rem; letter-spacing: -0.02em; }
+  h2 { font-size: 1.1rem; margin: 2.5rem 0 0.8rem; color: var(--accent); letter-spacing: 0.04em; text-transform: uppercase; }
+  p { margin: 0 0 1rem; }
+  .lede { font-size: 1.1rem; color: var(--muted); margin-bottom: 2rem; }
+  pre {
+    background: var(--code-bg); padding: 1rem 1.2rem; border-radius: 4px;
+    border: 1px solid var(--border); overflow-x: auto; font-size: 14px;
+  }
+  code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.92em; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted; }
+  a:hover { border-bottom-style: solid; }
+  ul { padding-left: 1.2rem; }
+  li { margin: 0.3rem 0; }
+  .ascii {
+    font-size: 12px; line-height: 1.2; color: var(--muted); white-space: pre;
+    margin: 0 0 2rem; overflow-x: auto;
+  }
+  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+
+<pre class="ascii">     _
+    | |_ ___ _____   _____
+    |  _|  _|  _  |_|   -|
+    |_| |_| |_____|_|___/   v0.1 draft
+</pre>
+
+<h1>Trove</h1>
+<p class="lede">The local-first, AI-native resource manager for AI coding agents.</p>
+
+<p>One <code>~/.trove/</code> directory holds your API credentials, MCP configs, and usage docs for every service. Any AI coding agent (Claude Code, Cursor, Codex, Aider) reuses them across all your projects.</p>
+
+<p><strong>No inject step. No cross-agent adapters. AI is the runtime.</strong></p>
+
+<h2>How it works</h2>
+
+<pre>~/.trove/
+├── minimax/
+│   ├── module.md         # YAML frontmatter + skill body
+│   └── credentials.json  # secrets (gitignored, 600 perms)
+├── cloudflare/
+├── resend/
+└── ...</pre>
+
+<p>Reference from any project's <code>CLAUDE.md</code>:</p>
+
+<pre>@trove.md</pre>
+
+<p>Where <code>trove.md</code> just lists the modules:</p>
+
+<pre>@/Users/you/.trove/minimax/module.md
+@/Users/you/.trove/cloudflare/module.md
+@/Users/you/.trove/resend/module.md</pre>
+
+<p>That's it. The AI auto-loads each module, fetches credentials on demand (no env pre-export), and configures MCP servers when needed.</p>
+
+<h2>What's in the box</h2>
+
+<ul>
+  <li><a href="https://github.com/RoboZephyr/trove/blob/main/SPEC.md">SPEC</a> — the format definition (frontmatter schema, reference syntax, runtime conventions)</li>
+  <li><a href="https://github.com/RoboZephyr/trove/tree/main/examples">examples/</a> — reference modules: minimax, anthropic, openrouter, fal-ai, supabase, cloudflare, resend, lark, github-*</li>
+  <li><a href="https://github.com/RoboZephyr/trove/blob/main/ROADMAP.md">ROADMAP</a> — phases and explicit non-goals</li>
+  <li><a href="https://github.com/RoboZephyr/trove/blob/main/CONTRIBUTING.md">CONTRIBUTING</a> — module quality bar</li>
+</ul>
+
+<h2>Status</h2>
+
+<p>v0.1 draft. Format is stable; Web UI (with AI-assisted credential entry) is the next milestone.</p>
+
+<footer>
+  <a href="https://github.com/RoboZephyr/trove">github.com/RoboZephyr/trove</a> ·
+  MIT licensed ·
+  Built by <a href="https://github.com/RoboZephyr">@RoboZephyr</a>
+</footer>
+
+</body>
+</html>
