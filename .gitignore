@@ -12,11 +12,17 @@ Thumbs.db
 .idea/
 *.swp
 
-# Local secrets / test data (never commit real credentials in examples)
-**/credential.json
-**/credential.enc
+# Local secrets / test data — NEVER commit real credentials
+# (matches both ~/.trove/<svc>/ and any project-level .trove/<svc>/ files)
+**/credentials.json
+**/credentials.enc
 *.env
 *.env.local
+.dev.vars
+.dev.vars.*
+
+# Lark CLI config (if it ends up adjacent to a project)
+.lark-cli/
 
 # Test output
 coverage/
