@@ -6,9 +6,12 @@
   "description": "Local-first, AI-native resource manager for AI coding agents",
   "license": "MIT",
   "scripts": {
-    "validate": "bun bin/trove-validate.ts"
+    "validate": "bun bin/trove-validate.ts",
+    "ui": "bun ui/server.ts"
   },
   "dependencies": {
+    "hono": "^4.6.0",
+    "marked": "^14.1.0",
     "yaml": "^2.6.1"
   },
   "devDependencies": {

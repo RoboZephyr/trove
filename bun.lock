@@ -5,6 +5,8 @@
     "": {
       "name": "trove",
       "dependencies": {
+        "hono": "^4.6.0",
+        "marked": "^14.1.0",
         "yaml": "^2.6.1",
       },
       "devDependencies": {
@@ -14,6 +16,10 @@
   },
   "packages": {
     "@types/node": ["@types/node@22.19.18", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-9v00a+dn2yWVsYDEunWC4g/TcRKVq3r8N5FuZp7u0SGrPvdN9c2yXI9bBuf5Fl0hNCb+QTIePTn5pJs2pwBOQQ=="],
+
+    "hono": ["hono@4.12.18", "", {}, "sha512-RWzP96k/yv0PQfyXnWjs6zot20TqfpfsNXhOnev8d1InAxubW93L11/oNUc3tQqn2G0bSdAOBpX+2uDFHV7kdQ=="],
+
+    "marked": ["marked@14.1.4", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-vkVZ8ONmUdPnjCKc5uTRvmkRbx4EAi2OkTOXmfTDhZz3OFqMNBM1oTTWwTr4HY4uAEojhzPf+Fy8F1DWa3Sndg=="],
 
     "undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 
