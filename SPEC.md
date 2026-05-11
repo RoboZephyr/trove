@@ -340,6 +340,11 @@ dogfood 时发现的「AI 没按约定走」/「SPEC 没说清」案例都记在
 
 格式：`日期 · 触发场景 · 问题 · 修复（commit hash）`
 
+### 2026-05-12
+
+- **Trove Web UI v0.2 首跑：两个状态显示 bug 被实地用户立刻抓出来**：scaffold 用 Bun + Hono + HTMX + Tailwind CDN，~700 LOC。在已装 6 个 module 的 `~/.trove/` 上跑起来当场暴露两个 UI bug：① **「全 default」module 被误判为 `credentials missing`**——github-a404coder / github-robozephyr 所有字段都有 `default:`，credentials.json 是 `{}`，按 SPEC §2.2 是 valid 状态，UI 却显示红色 missing。**根因**：状态计算函数提前 `if (present.length === 0) return "missing"`，没区分「required 集合为空」和「required 都没填」。**修复**：先 `if (requiredKeys.length === 0) return "complete"`，再做填值对比。② **HTMX 局部 swap 漏掉 header badge**：填完凭证 Save 后表单原地 swap ✓，但页面 header 的红色 `credentials missing` 不变——PATCH 只返回 form 片段，badge 在 swap 范围外，用户的直觉反应是「没保存」。**修复**：HTMX OOB（out-of-band）—— 同一响应附带 `<span id="cred-badge" hx-swap-oob="true">` 片段，HTMX 自动找 id 替换。一处保存、多处同步、零额外 round-trip。**衍生原则**：**HTMX 局部 swap 必须列举所有依赖该状态的 UI 节点**，不在主 target 内的用 OOB 覆盖——这是 HTMX-heavy SSR 架构（v0.2 选型）的最高频陷阱，必须当一等公民习惯而不是 bug 修。**意义**：UI 上线 30 分钟内被真实用户抓到两个状态显示 bug，**正好证明 SPEC §10 的「dogfood-driven 是 SPEC 修订唯一可信来源」原则**——任何 spec/design doc 都预测不到 `present.length === 0` 和 `requiredKeys.length === 0` 的语义重叠盲区。
+- **首次「纯 Web UI → 真实 API 调用」端到端跑通（openrouter）**：用户从未编辑过 credentials.json，纯通过 Web UI 表单填 `OPENROUTER_API_KEY` → UI 写盘 `~/.trove/openrouter/credentials.json`（600 权限）→ 按 module skill 推荐方式 `jq -r .OPENROUTER_API_KEY` 抽 key → POST `https://openrouter.ai/api/v1/chat/completions` → `claude-haiku-4-5` 返回 `trove dogfood smoke test ok`，费用 $0.000074。**全程零文件系统操作、零命令行操作、零凭证字面值露出**。配合首次走通的 Install flow（Examples gallery → Install → 拷 `examples/openrouter/module.md` 到 `~/.trove/openrouter/` → 跳转详情页 → 填表 → API 工作），验证了 v0.2 设计文档「四 screen 闭环：Modules grid / Module 详情 / Credentials 表单 / Examples gallery」是完整产品流。**意义**：这是设计文档「Web UI 是凭证录入的一等公民、`$EDITOR` 是 fallback」核心假设的**最强实战证据**——一个曾经的「手工 mkdir + vim credentials.json」流程被压缩成「点 Install、填表、Save」三步。一旦这条路顺滑到可推荐给非开发者，Trove 就不再只是 AI agent 的工具，而是任何「想管 API key 但不想碰文件系统」的人的资源中心。**衍生开放问题**：跨设备同步策略（用户多台机器各自填一遍？还是同步 `~/.trove/`？）——v0.3 之前先继续靠 git remote 手动同步，等真有第二台机器需求再说。
+
 ### 2026-05-11
 
 - `trove validate --all` 报 `github-*` module credentials.json「缺字段」，但那些字段在 frontmatter 有 `default:`。**问题**：SPEC 未明确「带 default / 标 required: false 的字段是否必须在 credentials.json 重申」。**修复**：SPEC §2.2 加「哪些字段必须出现」规则；validate 逻辑跳过有 default 的字段。
