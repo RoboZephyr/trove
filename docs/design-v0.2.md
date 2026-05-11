@@ -80,13 +80,13 @@ These are 30-line Bun scripts, can ship anytime separately:
 
 **~500 LOC** for v0.2 (server + HTMX templates + Tailwind). Single-evening work.
 
-## Open questions for review
+## Decisions (resolved 2026-05-11 before scaffolding)
 
-1. **Frontend directory name** — `site-ui/`? `ui/`? `dashboard/`? (distinct from `site/` landing). Lean `ui/`.
-2. **Examples gallery source** — read from this repo's `examples/` directory at runtime (requires Web UI to know its install location) vs bundle examples into the binary at build time. Lean bundled (cleaner, works offline).
-3. **Credential form values** — never round-trip plaintext back to browser after first save. GET returns masked (`••••••••`); PATCH accepts new plaintext, overwrites. OK?
-4. **Modules grid empty state** — auto-suggest installing the most popular 3 examples (minimax, cloudflare, anthropic) as a "Quick start"? Or just show empty + link to examples?
-5. **Read-only mode** — query string `?readonly=true` to disable all writes (useful for screencast / demo / sharing). Worth supporting in v0.2? Lean no, defer.
+1. **Frontend directory**: `ui/` (short, clear; distinct from landing `site/`)
+2. **Examples source**: **bundled at build time** into the binary (works offline; no need to know install location)
+3. **Credential form**: GET returns masked (`••••••••`); PATCH accepts plaintext, overwrites file. Plaintext never round-trips
+4. **Empty state**: auto-suggest top 3 (minimax / cloudflare / anthropic) as Quick Start cards
+5. **Read-only mode**: deferred to v0.3 (not in v0.2)
 
 ## Risks
 
