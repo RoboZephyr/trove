@@ -11,10 +11,12 @@ Trove is a hobby OSS project. There is no fixed timeline. Items are roughly orde
 - [x] Format spec draft ([SPEC.md](./SPEC.md))
 - [x] Worked example: `examples/minimax/`
 - [x] Worked example: `examples/cloudflare/`
-- [ ] Worked examples: anthropic, openai, supabase
-- [ ] Translate SPEC.md to English
-- [ ] Real-world dogfood log: pain points & spec revisions discovered through use
-- [ ] `trove validate` (~30 lines) — frontmatter + credentials.json field alignment check
+- [x] Worked examples: anthropic, supabase, openrouter, fal-ai, github-robozephyr, github-a404coder (8 modules total)
+- [x] `trove validate` — frontmatter + credentials.json field alignment check, with `.example.json` fallback
+- [x] Real-world dogfood log (SPEC §10): 5 entries from actual usage so far, each producing a SPEC revision
+- [ ] More modules: resend (email), upstash (redis), neon/turso (db), replicate / groq (AI)
+- [ ] Translate SPEC.md to English (once spec stabilizes)
+- [ ] Enable GitHub Pages for repo homepage (https://robozephyr.github.io/trove/), defer custom domain decision until traction
 
 ## v0.2 — Web UI
 
