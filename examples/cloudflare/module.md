@@ -43,7 +43,9 @@ credentials:
 
 ## Pages 部署（静态站最常用）
 
-**⚠️ Pages 项目第一次部署的坑**：wrangler **不会自动创建** Pages project。直接 `wrangler pages deploy --project-name <new>` 会报 `Project not found (code 8000007)`。**必须先显式 API 建 project**：
+**⚠️ Pages 部署 + 自定义域有两个非显式坑**：
+
+**坑 1：wrangler 不自动建 project**。直接 `wrangler pages deploy --project-name <new>` 报 `Project not found (code 8000007)`。**必须先 API 建 project**：
 
 ```bash
 # Step 0 (first time only): create the project via API
@@ -62,8 +64,33 @@ npx wrangler pages deploy ./dist \
   --branch main \
   --commit-dirty=true
 
-# 输出示例：
-# ✨ Successfully published to https://abc123.my-site.pages.dev
+# 输出：✨ Successfully published to https://<random>.my-site.pages.dev
+```
+
+**坑 2：custom domain 的 CNAME 必须指 `<project-name>-<random>.pages.dev` 而非通用 `<project-name>.pages.dev`**。Pages 自动给每个 project 分配一个不同的子域（如 `trove-7vp.pages.dev`），看 deploy 命令输出。指通用域会让 SSL 一直 `verification_data: "CNAME record not set"` 不 active，即使 API 看 record 是好的。
+
+```bash
+# ❌ 错的（看似合理但 Pages SSL 永远 pending）
+content: "my-site.pages.dev"
+
+# ✅ 对的（用 deploy 输出里的具体 subdomain）
+content: "my-site-abc.pages.dev"
+```
+
+记录到 CF DNS（推荐 proxied=true 走橙云）：
+
+```bash
+curl -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" \
+  -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"type":"CNAME","name":"my-subdomain","content":"my-site-abc.pages.dev","proxied":true,"ttl":1}'
+```
+
+然后绑 Pages domain（自动触发 SSL provision，~10min）：
+
+```bash
+curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/pages/projects/my-site/domains" \
+  -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"my-subdomain.example.com"}'
 ```
 
 **常见坑**：
