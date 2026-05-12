@@ -23,7 +23,7 @@ credentials:
     help: "Full JSON of a GCP service-account key with Viewer role on the GA4 property. Paste the entire {type:'service_account',...} blob. Get one from console.cloud.google.com → IAM → Service Accounts → Keys → Add Key (JSON). Then add the service-account email as Viewer in GA4 Admin → Account/Property → User Management."
 
 trove_spec: "0.1"
-last_verified: "2026-05-12 · API runReport 200 via RS256 service-account JWT; MCP path (analytics-mcp stdio) registered in ~/.claude.json but not E2E from scaffold session"
+last_verified: "2026-05-12 · API runReport on real production GA4 property (28-day window, thousands of users, full funnel custom-event queryable). MCP path uses same SA — `pipx run analytics-mcp` with GOOGLE_APPLICATION_CREDENTIALS pointing to the JSON file"
 ---
 
 # GA4 Data API Usage Guide

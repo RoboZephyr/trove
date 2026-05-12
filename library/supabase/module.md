@@ -13,7 +13,7 @@ applies_to:
   - deploying or invoking Edge Functions
   - any task using `supabase` CLI
 trove_spec: "0.1"
-last_verified: "pending — module is API-shape but actual usage is supabase-mcp. Awaiting MCP-shape rewrite"
+last_verified: "pending — module is API-shape but planned usage is supabase-mcp. Awaiting (a) maintainer onboarding a real supabase project, (b) MCP-shape rewrite. Downstream survey: no current project uses supabase, can't verify yet"
 
 credentials:
   SUPABASE_URL:

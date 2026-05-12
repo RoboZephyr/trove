@@ -12,7 +12,7 @@ applies_to:
   - webhook handling (signature verification mandatory)
   - reading existing customers / payments for analytics / reconciliation
 trove_spec: "0.1"
-last_verified: "2026-05-12 · GET /v1/customers via rk_live_ (API path OK). MCP path (https://mcp.stripe.com hosted HTTP) registered in ~/.claude.json but not invoked from scaffold session"
+last_verified: "2026-05-12 · GET /v1/customers via rk_live_ (API path OK). MCP path (https://mcp.stripe.com hosted HTTP, OAuth) registered in ~/.claude.json. Maintainer downstream uses cover three forms: Payment Links (frontend CTA URLs), SDK in a backend pipeline, and MCP from Claude Code"
 
 credentials:
   STRIPE_SECRET_KEY:
