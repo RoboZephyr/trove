@@ -1,11 +1,7 @@
-#!/usr/bin/env bun
 /**
  * trove validate — checks that a module directory conforms to Trove v0.1 spec.
  *
- * Usage:
- *   bun bin/trove-validate.ts <module-dir>           # validate single module
- *   bun bin/trove-validate.ts --all                  # validate all modules under ~/.trove/
- *   bun bin/trove-validate.ts --library              # validate every library/* in this repo
+ * Invoked via `trove validate ...` (see bin/cli.ts).
  */
 
 import { parse as parseYaml } from "yaml";
@@ -156,17 +152,15 @@ async function listModules(root: string): Promise<string[]> {
     .map((e) => resolve(root, e.name));
 }
 
-async function main() {
-  const args = process.argv.slice(2);
-
+export async function runValidate(args: string[]): Promise<number> {
   if (args.length === 0 || args.includes("-h") || args.includes("--help")) {
     console.error(
       "Usage:\n" +
-        "  bun bin/trove-validate.ts <module-dir>     # validate single module\n" +
-        "  bun bin/trove-validate.ts --all            # validate all modules in ~/.trove/\n" +
-        "  bun bin/trove-validate.ts --library        # validate all library/ entries in this repo",
+        "  trove validate <module-dir>     # validate single module\n" +
+        "  trove validate --all            # validate all modules in ~/.trove/\n" +
+        "  trove validate --library        # validate all library/ entries in this repo",
     );
-    process.exit(args.length === 0 ? 1 : 0);
+    return args.length === 0 ? 1 : 0;
   }
 
   let modules: string[];
@@ -194,7 +188,5 @@ async function main() {
   console.log(
     `\n${modules.length} module${modules.length === 1 ? "" : "s"} · ${errors} error${errors === 1 ? "" : "s"} · ${warnings} warning${warnings === 1 ? "" : "s"}`,
   );
-  process.exit(errors > 0 ? 1 : 0);
+  return errors > 0 ? 1 : 0;
 }
-
-main();

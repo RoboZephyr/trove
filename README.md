@@ -4,19 +4,21 @@
 
 [简体中文](./README.zh-CN.md)
 
-Trove is a directory format and a tiny tool around it. You keep API credentials, MCP server configs, and usage docs (skills) for every service you use in one place — `~/.trove/` — and any AI coding agent (Claude Code, Cursor, Codex, Aider) reuses them across all your projects.
+Trove is a directory format and a tiny tool around it. Per service, you keep the **hard-won usage knowledge** (gotchas, billing pitfalls, error-code maps — the stuff that gets a senior engineer paged at 2am), plus the API credentials and MCP server pointers, in one place — `~/.trove/` — that any AI coding agent (Claude Code, Cursor, Codex, Aider) reuses across all your projects.
 
-**No inject step. No init step. No cross-agent adapters.** AI is the runtime: it reads modules, fetches credentials on demand, and even configures MCP servers when needed.
+**No inject step. No init step. No cross-agent adapters.** AI is the runtime: it reads modules, fetches credentials on demand, and even installs MCP servers when needed.
 
 ## Why
 
-Today, AI coding agents need to work with many third-party services (Stripe, Anthropic, MiniMax, Cloudflare, Supabase…). The resources for using these services are scattered:
+The marketing pitch for "AI configures your services" is easy. The real bottleneck is different: every service has a **landmine field** of gotchas that the AI will step on unless someone — a human who actually ran it in production — wrote them down. Stripe amounts in cents, Supabase RLS opt-in default, Google Analytics service-account-as-user-not-IAM, Resend's two independent sandbox gates: an AI agent gets all of these wrong if you don't pre-load the warning.
 
-- API credentials → `.env` files in every project, or 1Password, or somewhere else
-- MCP server configs → `~/.claude.json`, `~/.cursor/mcp.json`, `~/.codex/...`
-- Usage docs → `CLAUDE.md`, `AGENTS.md`, `.cursorrules` (one per agent, no reuse)
+**Trove's primary value is that landmine map**, per service, written from dogfood use. Around that, it also consolidates the bookkeeping:
 
-Switching projects means re-configuring. Switching agents means re-writing. Adding a new service means editing four places. **Trove consolidates this into one place that all agents read from.**
+- **Usage docs** (the moat) — gotchas, real code snippets, billing pitfalls, error tables — sourced from your actual production runs, not LLM training data
+- **API credentials** → instead of `.env` files in every project, or 1Password, or somewhere else
+- **MCP server pointers** → instead of `~/.claude.json`, `~/.cursor/mcp.json`, `~/.codex/...`
+
+Switching projects means re-configuring. Switching agents means re-writing. Adding a new service means editing four places. **Trove consolidates this into one place that all agents read from**, with skill knowledge as the part nothing else replaces.
 
 ## How it works
 
@@ -43,36 +45,47 @@ For services with MCP servers, the AI merges the `mcp:` config into your agent's
 
 ## Status
 
-**v0.1 draft** — early stage. Format spec is stable; tooling (Web UI, AI Authoring) in progress.
+**v0.2** — Web UI shipped, 16 modules in `library/` gated by a `last_verified` field (modules without real verification were dropped at v0.2 release). Format spec is stable; AI-assisted module authoring (v0.3) in progress.
 
 See:
 - [SPEC.md](./SPEC.md) — full format specification (Chinese, English translation forthcoming)
 - [ROADMAP.md](./ROADMAP.md) — what's planned
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — how to contribute modules
 
-## Quick start (manual mode, no tooling required)
+## Quick start
 
 ```bash
-# 1. Create your trove
-mkdir -p ~/.trove
+# 1. Install
+npm install -g @robozephyr/trove
+# (Node 22+ required. Homebrew tap planned for v1.0.)
 
-# 2. Add a module (copy from this repo's library/)
-cp -r library/minimax ~/.trove/
-chmod 600 ~/.trove/minimax/credentials.json
+# 2. Open the local Web UI to install a module and fill credentials
+trove ui
+# → http://127.0.0.1:7821
+# Pick e.g. `minimax` from the Library tab, click Install, fill the form.
 
-# 3. Fill in your real credentials
-$EDITOR ~/.trove/minimax/credentials.json
-# ⚠️ Direct file editing is the fallback. The first-class flow is `trove ui` (v0.2),
-# which keeps secrets out of shell history / screenshots / pair-programming.
-
-# 4. Reference it from any project's CLAUDE.md
+# 3. Reference it from any project's CLAUDE.md
 echo '@/Users/you/.trove/minimax/module.md' >> /path/to/project/CLAUDE.md
 
-# 5. Start your AI agent there
+# 4. Start your AI agent there
 cd /path/to/project && claude
 ```
 
 The AI now knows MiniMax: how to call it, what gotchas to avoid, where to find the key.
+
+### Zero-tooling mode
+
+If you don't want the binary, the directory convention IS the runtime — just clone, copy, edit:
+
+```bash
+mkdir -p ~/.trove
+cp -r library/minimax ~/.trove/
+chmod 600 ~/.trove/minimax/credentials.json
+$EDITOR ~/.trove/minimax/credentials.json
+# ⚠️ Direct file editing is the fallback. `trove ui` keeps secrets out of
+# shell history / screenshots / pair-programming.
+echo '@/Users/you/.trove/minimax/module.md' >> /path/to/project/CLAUDE.md
+```
 
 For multi-account scenarios (e.g. multiple GitHub or Cloudflare accounts), duplicate the `library/github-account/` template under a per-account directory name (e.g. `~/.trove/github-personal/`, `~/.trove/github-work/`) and fill each with that account's identity.
 

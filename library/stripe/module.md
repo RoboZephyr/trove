@@ -28,6 +28,10 @@ credentials:
     required: false
     default: "2025-09-30.clover"
     help: "Pin API version explicitly to avoid silent breakage when Stripe rolls forward. Find current default at https://stripe.com/docs/api/versioning"
+
+mcp:
+  type: http
+  url: https://mcp.stripe.com
 ---
 
 # Stripe Usage Guide
@@ -94,6 +98,45 @@ const pi = await stripe.paymentIntents.create({
 // Client confirms with pi.client_secret on the frontend
 // On success, you'll get a webhook payment_intent.succeeded
 ```
+
+---
+
+## Payment Links (no-code / link-as-CTA pattern)
+
+A Payment Link is a Stripe-hosted checkout URL (`https://buy.stripe.com/<id>`). You create one per product/price in the dashboard (or via API), then **paste the URL anywhere** — landing page button, email, QR code, Notion doc. No frontend code, no PCI scope, no backend integration.
+
+**When to use** (vs Payment Intents):
+
+| Need | Use |
+|---|---|
+| Embed checkout in your own React/Vue app | Payment Intents + Stripe Elements |
+| Sell a digital product / course / consult from a static site | **Payment Links** |
+| One-off invoices to specific customers | Invoices (different feature) |
+| Subscription with custom signup flow | Payment Intents + Subscriptions API |
+| "Buy this" button on a landing page, zero backend | **Payment Links** |
+
+**Create programmatically**:
+
+```typescript
+const link = await stripe.paymentLinks.create({
+  line_items: [{ price: 'price_xxx', quantity: 1 }],
+  after_completion: {
+    type: 'redirect',
+    redirect: { url: 'https://your-app.com/thanks?session_id={CHECKOUT_SESSION_ID}' },
+  },
+  metadata: { campaign: 'launch-2026q1' },
+});
+// link.url → https://buy.stripe.com/abc123 — use anywhere
+```
+
+**Gotchas**:
+- **Payment Links use Checkout Sessions under the hood** — you receive `checkout.session.completed` webhook (not `payment_intent.succeeded`) on success. Listen to the right event
+- **The redirect `{CHECKOUT_SESSION_ID}` template** must be the literal string; Stripe substitutes it. Use it server-side to look up the session and fulfill the order
+- **No customer pre-fill** unless you also pass `customer` (Payment Link Sessions API) — for one-off public CTAs, leave it blank and Stripe collects email
+- **Tax / shipping** must be configured on the Price or via tax codes; Payment Links can't override per-link
+- **Disabling a Payment Link** = set `active: false`. Existing link URLs return a "no longer accepting payments" page. **Don't delete** — breaks email/SMS links shared earlier
+
+This is the third deployment shape for Stripe (alongside SDK and MCP); some maintainer projects use Payment Links exclusively without any Stripe API calls in their codebase. **`grep -r stripe` returning zero hits is not evidence "we don't use Stripe"** — check for `buy.stripe.com/` URLs in marketing/landing assets.
 
 ---
 
@@ -204,6 +247,31 @@ const result = await stripe.customers.search({
 - Test keys: `sk_test_*` / `rk_test_*` — completely separate dashboard
 - Stripe CLI for local webhook forwarding: `stripe listen --forward-to localhost:3000/webhooks/stripe`
 - **Never use live keys in dev**. The `_test_` vs `_live_` separation is the most useful safety net Stripe gives you; don't undermine it
+
+---
+
+## Stripe MCP (official hosted server)
+
+Stripe ships an **official hosted MCP** — `https://mcp.stripe.com`. The agent talks HTTP, no local install, OAuth-on-first-use. Already declared in this module's `mcp:` frontmatter.
+
+**Use from Claude Code / Cursor**: after the OAuth approval, ask things like:
+
+> "Stripe MCP: list the last 10 successful payments and group by product"
+> "Stripe MCP: find customer by email user@example.com and show their active subscriptions"
+> "Stripe MCP: create a Payment Link for price_xxx with redirect to https://example.com/thanks"
+
+Why MCP shines for Stripe specifically:
+
+- **Exploratory analytics** without writing SDK code — "how much MRR did we close last month, broken down by plan"
+- **Customer support flows** — look up a customer, refund a charge, void an invoice, all conversational
+- **Cross-resource navigation** — agent walks `customer → subscriptions → invoices → charges` without you wiring `expand:` chains
+
+**What MCP cannot do**:
+- **Webhook handling** — that's a long-lived server, not a tool call. Keep the SDK + Express handler path
+- **High-volume batch** — MCP is conversational; batch reconciliation should still go through `stripe.charges.list({})` with pagination in your own code
+- **Production mutation without human review** — MCP tool calls can refund, charge, or delete; treat each tool approval like a manual dashboard click
+
+**Operational note**: MCP uses your account's normal scopes — `read_only` mode is a Stripe Dashboard restricted-key concept; MCP itself doesn't expose a `read_only=true` query param yet (unlike Supabase). To get read-only safety, the OAuth grant scopes you approve in the first-use flow.
 
 ---
 

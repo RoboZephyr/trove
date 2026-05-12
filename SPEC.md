@@ -81,7 +81,8 @@ credentials:
     default: china
     help: "国内 key 用 api.minimaxi.com，国际 key 用 api.minimax.io，混用报错"
 
-mcp:                          # 可选
+mcp:                          # 可选；详见下文「mcp: 字段（两种 sub-schema）」
+  type: stdio
   command: npx
   args: ["-y", "@minimax/mcp-server"]
   env:
@@ -125,10 +126,54 @@ mcp:                          # 可选
 
 **字段不强制**（SPEC §2.1 `last_verified` 是推荐字段不是必需）；但 `trove validate` 会对缺失字段 emit warning，UI 在卡片上会显示「unverified」灰章。
 
-**skill 正文写作要点**（产品成败命门）：
-1. **以反例/易错点开头**而不是 happy path
-2. 真实代码片段，不要伪代码
-3. 计费/限流/错误码单独章节
+---
+
+**`mcp:` 字段（两种 sub-schema）**
+
+实战形态有两种 MCP transport，`mcp.type` 必须显式声明其一。两种 schema 互斥——同一 module 一次只声一种 transport（多数 server 也只支持一种）。
+
+**`type: stdio`** — 本地子进程，agent 通过 stdin/stdout 通信。npm / pypi 发布的 MCP server 多用此形态。
+
+```yaml
+mcp:
+  type: stdio
+  command: npx                  # 或 pipx / uvx / deno / node / 自定义二进制
+  args: ["-y", "@resend/mcp-send-email"]
+  env:                          # 可选；只列 server 实际读的 env keys
+    RESEND_API_KEY: ${credential.RESEND_API_KEY}
+```
+
+**`type: http`** — 远端托管 server，无需本地安装。鉴权常走 OAuth-on-first-use 由 agent 自己完成（不写在 module）。
+
+```yaml
+mcp:
+  type: http
+  url: https://mcp.stripe.com
+```
+
+**字段语义**：
+
+| field | applies to | meaning |
+|---|---|---|
+| `type` | stdio / http | **必需**（v0.1 spec 内为新增，可缺省，但 `trove validate` 会 warn 让迁移） |
+| `command` | stdio | 启动命令（`npx` / `pipx` / `uvx` / `deno` / abs path） |
+| `args` | stdio | 命令行参数数组，**绝不在此放 secret**（见反模式 #1） |
+| `env` | stdio | server 进程的环境变量，**secret 必须 `${credential.X}` 引用**而不是字面值 |
+| `url` | http | MCP server 的 HTTP endpoint |
+
+**substitution 语法**：`${credential.KEY_NAME}` 在 `env:` / `args:` / `url:` 里都合法，install 时由 agent / Web UI 替换成 `credentials.json` 里的实际值。字面字符串无需替换。注意 `url:` 里多用于 query string（如 `?project_ref=${credential.PROJECT_REF}`）而非 host——host 应该是稳定的官方 endpoint。
+
+**当 server 同时支持两种 transport** → 优先 `type: http`（零安装、不锁本机环境）。如对方还提供 stdio，可在 skill body 注明备用方式，但 frontmatter 只声 http。
+
+**反模式**（来自 SPEC §10 dogfood 沉淀）：
+
+1. ❌ **secret 进 `args:` 字面值**（如 lark-mcp 老版的 `["--app-secret", "sk_..."]`）—— secret 必须存在 `credentials.json` 并通过 `${credential.X}` 在 `env:` 里引用。若 server 设计上只接受 secret 当 CLI 参数,要么换 CLI/SDK 形态、要么用 stdin-based flag。
+2. ❌ **`env:` 里写硬编码绝对路径**（`GOOGLE_APPLICATION_CREDENTIALS: /Users/zephyr/.../foo.json`）—— 跨机器迁移即坏。文件型凭证的正式机制见 §2.2 待引入的 `type: file`（SPEC #26 工作项）；当前临时方案是把文件内容内联进 `multiline` 字段，由 skill body 教 AI runtime materialize。
+3. ❌ **`mcp:` 块缺 `type:`**（legacy 形态）—— 解释为 `type: stdio` 但 validate warn。每次写新 module 必须显式写 `type:`。
+
+**何处真正安装**：见 §3「MCP 配置」—— AI 把这个 block merge 到 agent 的 MCP config（`~/.claude.json` 的 `mcpServers`、`~/.cursor/mcp.json` 等）。Trove 不主动安装，只提供声明。
+
+---
 
 **skill 正文写作要点**（产品成败命门）：
 1. **以反例/易错点开头**而不是 happy path
@@ -365,6 +410,7 @@ dogfood 时发现的「AI 没按约定走」/「SPEC 没说清」案例都记在
 
 ### 2026-05-12
 
+- **`mcp:` 字段对 `type: http`+OAuth 形态价值薄 — Trove 的护城河在 skill body + credentials，不在 mcp 字段本身**：今天给 supabase / stripe 加 `mcp:` 块时，写到 `type: http url: https://mcp.supabase.com/mcp` 这种纯 URL declaration 时被用户连环追问：「不需要存任何 secret、OAuth 也是 agent 自己管的话，那这跟链一段 Claude MCP docs 有啥区别？」**结构化拆**：(a) `type: stdio` + env-secret（resend / analytics-mcp）的 `mcp:` 块**有真状态** —— `command`/`args`/`env`-到-`${credential.X}` 的桥就是 Trove 的存档点，删了就要每个用户重写、还容易把 secret 写进 args（反模式）；(b) `type: http` + OAuth（supabase / stripe / figma）的 `mcp:` 块**几乎无状态** —— 就一个 URL + transport 字面值，没 secret 也没 env 桥。**那为什么还留**：machine-parseable signal（Web UI 一键 install 按钮、AI 看到 `type: http` 知道选 `--transport http` 而不是 stdio）+ 上下文 co-location（跟 skill body 的 `read_only` / `project_ref` / 哪些 tool 别用、credentials 的 API 面 SDK keys 同住一个 module 目录）。**但坦白说**：删掉对 hosted HTTP MCP 几乎不掉价 —— 因为 Trove 真正的护城河是 **skill body**（read_only 默认 / project_ref 安全 profile / Payment Links 第三形态 / Edge Functions URL shape / Auth header 三大搜索差异 / 各家 API 计费陷阱）+ **credentials.json**（API/SDK 路径的 keys），这两部分没人能替代。Anthropic 的 MCP registry 给得了 URL，给不了 gotchas。**衍生战略洞见**：行业 MCP 形态正在向 hosted+OAuth 演化（stripe / supabase / figma 都选了这条），未来 `mcp:` frontmatter 对越来越多服务来说就是 thin pointer。**这反而健康** —— 它把 Trove 的产品重心从「MCP 配置管家」更彻底地推向「服务 skill 知识库 + API 凭证库」，后者是更难、更高价值的问题面。**SPEC 不动**（`mcp:` 两种 sub-schema 保留），**README 和 positioning 文案应该调整** —— 别再把「MCP 配置」当一等卖点，把「skill body 是亲身踩坑沉淀，不是 LLM 训练数据复读」立成首要差异。
 - **拿维护者自有生产项目作 verify context：发现 3 个模块的真实使用形态和最初的模型不同**：用一个下游 web app（维护者自己的项目）作为 stripe / GA / supabase 的真实验证 context。摸完发现：(1) **stripe**：该项目前端**只用 Stripe Payment Links**（`buy.stripe.com/...` URLs 作 CTA），**完全不调 Stripe API**——下游项目不能验 stripe 模块的 API 路径。stripe API 实际被另一项目的 SDK pipeline 验证，stripe MCP 被 Claude Code 用。**Payment Links 是 stripe 模块的第 6 种使用形态**——没 API、没 MCP、纯前端 URL，但模块 skill body 完全没覆盖。SPEC 工作：stripe module 加 Payment Links 章节。(2) **GA**：下游项目前端 `gtag.js` 用 measurement id **写**事件给 GA4 property，Trove google-analytics 模块用 property id **读**这些事件——**前者写后者读，是同一个 GA4 property 的两半**。验证：Data API runReport 拉 28 天真实生产数据，千级 users / 万级 page_views / 完整漏斗事件全部可读。**这是 Trove 第一次拿到的"真生产数据 E2E"凭证**，比合成 smoke 强一个数量级。(3) **supabase**：下游项目代码 `grep supabase` **零命中**——维护者之前提到该项目用 supabase 是记错了，supabase 在 Trove 库里没有任何 production verify context。模块继续 pending 等真 onboard。**衍生原则**：(a) 模块的「verify context」不能假设，必须实际 grep 项目代码确认；(b) 同一服务可能有 N 种使用形态（API / MCP / CLI / Payment Links / 前端 SDK / ...），skill body 需要覆盖每一种或显式声明范围；(c) 维护者自己的生产项目是 Trove 模块最强的真实验证场——比注册 sandbox 账号 + 烧 smoke quota 高一个数量级的可信度。
 - **Release-quality gate: `last_verified` 字段 + "未验证不能挂成品"原则**：用户在批量集成 9 个新 module 后划了一条线："未验证就不能当作 successful 产物发布啊"。这条原则升级 Trove 从"我们有 18 个 module 模板"到"我们有 18 个**亲身验证过**的 module 模板"——一个公开 OSS 项目的品牌底线。**修复**：SPEC §2.1 加 `last_verified` 推荐字段（自由文本，`"YYYY-MM-DD · <method>"` 格式），覆盖 4 种状态：(a) 真实 E2E 跑通；(b) auth + contract 通过但 runtime 阻断（计费/quota 等）；(c) pending（缺 key / credential 失效）；(d) production（持续生产证据）。**18 个 module 一次性补完字段**：14 个 ✅ verified，2 个 pending（anthropic 无 key、supabase 待 MCP-shape 重写），2 个特殊状态（kling 账号没钱、google-ads refresh token 失效）。`trove validate` 后续会对缺字段 warn。**衍生原则**：library/ 是 release 面，repo `git clone` 即可见，每个 module 都要带 verification 时间戳。
 - **"漏看 ~/.claude.json 这一层" — 凭证只看 `.personal-data/` 等于只看了一半**：批量集成时只扫了 `.personal-data/credentials/*.env`，错过了 `~/.claude.json` 里**实际在用的 MCP 服务**配置。结果：(1) stripe 写成纯 API-shape，**漏掉 `https://mcp.stripe.com` 这个用户每天用的 hosted HTTP MCP**；(2) google-analytics 写成纯 API-shape，**漏掉 `analytics-mcp`（pipx run, 本地 stdio）这个已注册的 MCP server**；(3) 用户主动指出"supabase 是 mcp" / "stripe 也是 mcp" 才意识到问题面。**根因**：`.personal-data/` 是「人类放凭证的地方」，`~/.claude.json` 是「AI agent 实际消费凭证的地方」——两层完全不同的 audit surface，集成新 module 必须**同时扫两层**。**修复**：(a) Trove 模块迁移 checklist 加一步「先 `jq '.mcpServers // .projects' ~/.claude.json` 列已注册 MCP，逐项映射到 module」；(b) `mcp:` frontmatter 字段需要正式支持两种 sub-schema：`type: stdio` (command/args/env) 和 `type: http` (url) — SPEC v0.2 待写。**衍生原则**：「凭证迁移完整性」必须从**两个 source of truth** 交叉验证：人类的 env 文件 + AI agent 的实际配置。

@@ -5,6 +5,7 @@
 
 import { Hono } from "hono";
 import { html } from "hono/html";
+import { serve } from "@hono/node-server";
 import {
   getInstalledModule,
   getLibraryItem,
@@ -24,10 +25,10 @@ import {
   notFoundPage,
 } from "./views";
 
-const PORT = Number(process.env.TROVE_UI_PORT ?? 7821);
 const QUICK_START = ["minimax", "cloudflare", "anthropic"];
 
 const app = new Hono();
+let PORT = 7821;
 
 /**
  * Same-origin guard. The UI binds to 127.0.0.1 so external network traffic
@@ -103,10 +104,8 @@ app.post("/api/install", async (c) => {
 
 app.notFound((c) => c.html(notFoundPage("Page not found"), 404));
 
-export default {
-  port: PORT,
-  hostname: "127.0.0.1",
-  fetch: app.fetch,
-};
-
-console.log(`Trove UI → http://127.0.0.1:${PORT}`);
+export function startServer(opts: { port?: number } = {}): void {
+  PORT = opts.port ?? Number(process.env.TROVE_UI_PORT ?? 7821);
+  serve({ fetch: app.fetch, port: PORT, hostname: "127.0.0.1" });
+  console.log(`Trove UI → http://127.0.0.1:${PORT}`);
+}

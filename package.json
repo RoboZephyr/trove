@@ -1,20 +1,59 @@
 {
-  "name": "trove",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
+  "name": "@robozephyr/trove",
+  "version": "0.2.0",
   "description": "Local-first, AI-native resource manager for AI coding agents",
   "license": "MIT",
+  "homepage": "https://github.com/RoboZephyr/trove",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RoboZephyr/trove.git"
+  },
+  "bugs": "https://github.com/RoboZephyr/trove/issues",
+  "type": "module",
+  "bin": {
+    "trove": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "library",
+    "SPEC.md",
+    "ROADMAP.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "validate": "bun bin/trove-validate.ts",
-    "ui": "bun ui/server.ts"
+    "build": "esbuild bin/cli.ts --bundle --platform=node --target=node22 --format=esm --packages=external --outfile=dist/cli.js && chmod +x dist/cli.js",
+    "validate": "bun bin/cli.ts validate",
+    "ui": "bun bin/cli.ts ui",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run typecheck && bun run build"
   },
   "dependencies": {
+    "@hono/node-server": "^1.13.0",
     "hono": "^4.6.0",
     "marked": "^14.1.0",
     "yaml": "^2.6.1"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0"
-  }
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  },
+  "keywords": [
+    "ai",
+    "claude-code",
+    "cursor",
+    "codex",
+    "mcp",
+    "credentials",
+    "skill",
+    "local-first"
+  ]
 }

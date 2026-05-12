@@ -1,4 +1,3 @@
-/** @jsxImportSource hono/jsx */
 import { html, raw } from "hono/html";
 import { marked } from "marked";
 import type { Module, CredentialField } from "./modules";

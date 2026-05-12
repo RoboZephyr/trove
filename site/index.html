@@ -69,10 +69,10 @@
 <p class="lede">A local-first resource manager so AI coding agents can share API credentials and skill docs across every project on your machine.</p>
 
 <div class="stat-row">
-  <span><strong>16</strong> modules in library</span>
+  <span><strong>17</strong> modules in library</span>
   <span><strong>~/.trove/</strong> on disk</span>
   <span><strong>0</strong> cloud accounts</span>
-  <span><strong>v0.2</strong> · Web UI live</span>
+  <span><strong>v0.2</strong> · npm shipped</span>
 </div>
 
 <p>One <code>~/.trove/</code> directory holds every service you use — MiniMax keys, Cloudflare tokens, Stripe rk_live, the lot. Any AI coding agent (Claude Code, Cursor, Codex, Aider) reuses the same modules across all your projects.</p>
@@ -105,8 +105,11 @@
 
 <p>Run <code>trove ui</code> and a localhost dashboard at <code>http://127.0.0.1:7821</code> lets you browse installed modules, fill credentials through a form, and install new ones from the bundled library — all without ever opening <code>credentials.json</code> in <code>$EDITOR</code>.</p>
 
-<pre>cd ~/.trove && trove ui
+<pre>npm install -g @robozephyr/trove
+trove ui
 # → http://127.0.0.1:7821</pre>
+
+<p class="meta">Node 22+. Homebrew tap planned for v1.0.</p>
 
 <ul>
   <li><strong>Modules view</strong> — your installed modules grouped by category with credential-status indicators</li>
@@ -147,6 +150,7 @@
   <div class="cat">collab · dev-tool</div>
   <span class="name">lark</span>
   <span class="name">github-account</span>
+  <span class="name">npm</span>
 </div>
 
 <p>Each module ships with a <em>gotchas-first</em> skill body — auth header quirks, billing pitfalls, error-code tables — so the AI doesn't have to rediscover the same trap that bit the last engineer.</p>
@@ -155,7 +159,7 @@
 
 <ul>
   <li><a href="https://github.com/RoboZephyr/trove/blob/main/SPEC.md">SPEC</a> — the format definition (frontmatter schema, reference syntax, runtime conventions). Includes a living <em>convention adherence log</em> in §10 of real dogfood lessons from production.</li>
-  <li><a href="https://github.com/RoboZephyr/trove/tree/main/library">library/</a> — the 18 bundled modules listed above</li>
+  <li><a href="https://github.com/RoboZephyr/trove/tree/main/library">library/</a> — the 17 bundled modules listed above</li>
   <li><a href="https://github.com/RoboZephyr/trove/blob/main/ROADMAP.md">ROADMAP</a> — phases and explicit non-goals (no <code>trove init</code>, no inject step, no SaaS — ever)</li>
   <li><a href="https://github.com/RoboZephyr/trove/blob/main/CONTRIBUTING.md">CONTRIBUTING</a> — module quality bar</li>
   <li><a href="https://github.com/RoboZephyr/trove/blob/main/docs/design-v0.2.md">design-v0.2.md</a> — why the Web UI dropped AI-chat features (chat IS the entry interface; UI is the visualization)</li>
