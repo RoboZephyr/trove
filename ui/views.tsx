@@ -129,7 +129,7 @@ function parseVerify(s: string | undefined): { tier: VerifyTier; label: string; 
   const low = s.toLowerCase();
   if (low.startsWith("production")) return { tier: "production", label: "production", full: s };
   if (low.startsWith("pending")) return { tier: "pending", label: "pending", full: s };
-  if (/blocked|contract ok|no live|not invoked|not e2e|awaiting/.test(low)) {
+  if (/^\d{4}-\d{2}-\d{2} · partial\b/.test(low) || /blocked|contract ok|no live|not invoked|not e2e|not yet|awaiting/.test(low)) {
     return { tier: "partial", label: "partial", full: s };
   }
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return { tier: "verified", label: "verified", full: s };

@@ -13,7 +13,7 @@ applies_to:
   - deploying or invoking Edge Functions
   - any task using `supabase` CLI
 trove_spec: "0.1"
-last_verified: "pending — module is API-shape but planned usage is supabase-mcp. Awaiting (a) maintainer onboarding a real supabase project, (b) MCP-shape rewrite. Downstream survey: no current project uses supabase, can't verify yet"
+last_verified: "2026-05-12 · partial — maintainer downstream project actively calls Supabase Edge Functions (`<project-ref>.supabase.co/functions/v1`); endpoint reachable (401 without anon key, confirming project alive). API-shape (PostgREST / auth / storage / realtime) and MCP-shape (supabase-mcp) paths not yet exercised; module skill body documents API but not Edge Functions — Edge Functions section is SPEC-follow-up work"
 
 credentials:
   SUPABASE_URL:
