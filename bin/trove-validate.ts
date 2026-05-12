@@ -164,8 +164,7 @@ async function main() {
   let modules: string[];
   if (args[0] === "--all") {
     modules = await listModules(resolve(process.env.HOME!, ".trove"));
-  } else if (args[0] === "--library" || args[0] === "--examples") {
-    // --examples kept as alias for backward compat with old docs/snippets
+  } else if (args[0] === "--library") {
     const here = dirname(fileURLToPath(import.meta.url));
     modules = await listModules(resolve(here, "..", "library"));
   } else {
