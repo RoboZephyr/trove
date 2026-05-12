@@ -9,7 +9,7 @@ The single highest-value contribution. Each module makes Trove useful for one mo
 To add a module:
 
 1. Fork this repo
-2. Create a directory under `examples/<service-name>/` with two files:
+2. Create a directory under `library/<service-name>/` with two files:
    - `module.md` — see [SPEC.md §2.1](./SPEC.md) for frontmatter schema and writing guidelines
    - `credentials.example.json` — placeholder values, **no real secrets**
 3. Open a PR
@@ -20,7 +20,7 @@ To add a module:
 - **Real, copy-pasteable code**, not pseudocode. TypeScript preferred, mention Python alternative if it's significantly different.
 - **Pricing / quota / rate-limit pitfalls** in a dedicated section. AI doesn't think about money unless you tell it to.
 - **Error code table** for the most common 4xx/5xx codes with one-line interpretations.
-- See [`examples/minimax/module.md`](./examples/minimax/module.md) for a reference implementation.
+- See [`library/minimax/module.md`](./library/minimax/module.md) for a reference implementation.
 
 ## 2. Spec feedback
 

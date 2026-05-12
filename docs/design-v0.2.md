@@ -34,8 +34,8 @@ Web UI shows **what modules you have, what each can do, and lets you adjust thei
 GET /                   → home (modules grid)
 GET /m/:name            → module detail
 PATCH /api/m/:name/cred → save credentials.json values (form post)
-GET /examples           → browse repo's examples/ (community modules later)
-POST /api/install       → copy an example to ~/.trove/<name>/
+GET /library            → browse repo's library/ (community modules later)
+POST /api/install       → copy a library item to ~/.trove/<name>/
         |
 +-------v-----------+
 |   ~/.trove/        |
@@ -50,8 +50,8 @@ Everything server-side rendered. HTMX swaps fragments for inline edits. No clien
 
 1. **Home / Modules grid** — cards per installed module grouped by category. Each card: name, version, description, credentials-filled status indicator, applies_to tags
 2. **Module detail** — rendered frontmatter (metadata + applies_to as chips + credentials schema as a form), rendered skill.md body (marked), "edit credentials" inline form (HTMX fragment swap)
-3. **Examples gallery** — browse this repo's `examples/` directory; clicking an example opens preview + "Install to ~/.trove/" button
-4. **Empty / setup state** — when `~/.trove/` is empty, show setup wizard: "Welcome. Browse Examples to install your first module."
+3. **Library** — browse this repo's `library/` directory; clicking an item opens preview + "Install to ~/.trove/" button
+4. **Empty / setup state** — when `~/.trove/` is empty, show setup wizard: "Welcome. Browse the Library to install your first module."
 
 ### What v0.2 does NOT do
 
@@ -74,7 +74,7 @@ Everything server-side rendered. HTMX swaps fragments for inline edits. No clien
 
 These are 30-line Bun scripts, can ship anytime separately:
 - `trove ai new <url>` — for users without an interactive AI agent; fetches URL + LLM call + writes module draft. Optional, not required for v0.2 release.
-- `trove install <name-or-path>` — copy from repo's examples/ or a git URL to ~/.trove/. Could also just be a Web UI button.
+- `trove install <name-or-path>` — copy from repo's library/ or a git URL to ~/.trove/. Could also just be a Web UI button.
 
 ## Total budget
 

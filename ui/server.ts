@@ -4,23 +4,22 @@
  */
 
 import { Hono } from "hono";
-import { serveStatic } from "hono/bun";
+import { html } from "hono/html";
 import {
-  getExample,
   getInstalledModule,
-  installExample,
-  listExamples,
+  getLibraryItem,
+  installFromLibrary,
   listInstalledModules,
+  listLibrary,
   readCredentialsMasked,
   writeCredentials,
 } from "./modules";
-import { html } from "hono/html";
 import {
   credentialsBadgeOOB,
   credentialsForm,
-  examplePreviewPage,
-  examplesPage,
   homePage,
+  libraryItemPage,
+  libraryPage,
   modulePage,
   notFoundPage,
 } from "./views";
@@ -49,10 +48,10 @@ app.use("*", async (c, next) => {
 
 app.get("/", async (c) => {
   const modules = await listInstalledModules();
-  let quickStart: Awaited<ReturnType<typeof listExamples>> = [];
+  let quickStart: Awaited<ReturnType<typeof listLibrary>> = [];
   if (modules.length === 0) {
-    const examples = await listExamples();
-    const byName = new Map(examples.map((e) => [e.name, e]));
+    const library = await listLibrary();
+    const byName = new Map(library.map((e) => [e.name, e]));
     quickStart = QUICK_START.map((n) => byName.get(n)).filter((m): m is NonNullable<typeof m> => !!m);
   }
   return c.html(await homePage(modules, quickStart));
@@ -65,17 +64,17 @@ app.get("/m/:name", async (c) => {
   return c.html(await modulePage(mod, values));
 });
 
-app.get("/examples", async (c) => {
-  const [examples, installed] = await Promise.all([listExamples(), listInstalledModules()]);
+app.get("/library", async (c) => {
+  const [library, installed] = await Promise.all([listLibrary(), listInstalledModules()]);
   const installedNames = new Set(installed.map((m) => m.name));
-  return c.html(await examplesPage(examples, installedNames));
+  return c.html(await libraryPage(library, installedNames));
 });
 
-app.get("/examples/:name", async (c) => {
-  const ex = await getExample(c.req.param("name"));
-  if (!ex) return c.html(await notFoundPage(`No example named "${c.req.param("name")}"`), 404);
+app.get("/library/:name", async (c) => {
+  const item = await getLibraryItem(c.req.param("name"));
+  if (!item) return c.html(await notFoundPage(`No library module named "${c.req.param("name")}"`), 404);
   const installed = await getInstalledModule(c.req.param("name"));
-  return c.html(await examplePreviewPage(ex, !!installed));
+  return c.html(await libraryItemPage(item, !!installed));
 });
 
 app.patch("/api/m/:name/cred", async (c) => {
@@ -98,7 +97,7 @@ app.post("/api/install", async (c) => {
   const form = await c.req.parseBody();
   const name = typeof form.name === "string" ? form.name : "";
   if (!name) return c.text("name required", 400);
-  await installExample(name);
+  await installFromLibrary(name);
   return c.redirect(`/m/${name}`);
 });
 

@@ -1,5 +1,5 @@
 /**
- * Module FS layer: reads ~/.trove/<name>/ and the repo's bundled examples/.
+ * Module FS layer: reads ~/.trove/<name>/ and the repo's bundled library/.
  *
  * Frontmatter parsing is intentionally lenient — `trove validate` is the strict
  * gate; the UI should still render a partially malformed module so the user can
@@ -17,7 +17,7 @@ const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
 export const TROVE_HOME = resolve(homedir(), ".trove");
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-export const EXAMPLES_DIR = resolve(REPO_ROOT, "examples");
+export const LIBRARY_DIR = resolve(REPO_ROOT, "library");
 
 export interface CredentialField {
   type?: "text" | "password" | "url" | "select" | "boolean" | "number" | "multiline";
@@ -43,7 +43,7 @@ export interface Frontmatter {
 
 export interface Module {
   name: string;
-  source: "installed" | "example";
+  source: "installed" | "library";
   dir: string;
   frontmatter: Frontmatter;
   body: string;
@@ -133,15 +133,15 @@ export async function getInstalledModule(name: string): Promise<Module | null> {
   return loadModule(dir, "installed");
 }
 
-export async function listExamples(): Promise<Module[]> {
-  const dirs = await listDirs(EXAMPLES_DIR);
-  return Promise.all(dirs.map((d) => loadModule(d, "example")));
+export async function listLibrary(): Promise<Module[]> {
+  const dirs = await listDirs(LIBRARY_DIR);
+  return Promise.all(dirs.map((d) => loadModule(d, "library")));
 }
 
-export async function getExample(name: string): Promise<Module | null> {
-  const dir = resolve(EXAMPLES_DIR, name);
+export async function getLibraryItem(name: string): Promise<Module | null> {
+  const dir = resolve(LIBRARY_DIR, name);
   if (!(await fileExists(resolve(dir, "module.md")))) return null;
-  return loadModule(dir, "example");
+  return loadModule(dir, "library");
 }
 
 /**
@@ -206,12 +206,12 @@ export async function writeCredentials(
 }
 
 /**
- * Copy an example module to ~/.trove/<name>/module.md (credentials.json is
+ * Copy a library module to ~/.trove/<name>/module.md (credentials.json is
  * NOT copied — the user fills it through the UI after install).
  */
-export async function installExample(name: string): Promise<Module> {
-  const src = resolve(EXAMPLES_DIR, name, "module.md");
-  if (!(await fileExists(src))) throw new Error(`example "${name}" not found`);
+export async function installFromLibrary(name: string): Promise<Module> {
+  const src = resolve(LIBRARY_DIR, name, "module.md");
+  if (!(await fileExists(src))) throw new Error(`library module "${name}" not found`);
   const destDir = resolve(TROVE_HOME, name);
   const dest = resolve(destDir, "module.md");
   await mkdir(destDir, { recursive: true });

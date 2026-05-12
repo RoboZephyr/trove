@@ -281,7 +281,7 @@ AI 会：
 
 ## 6. Worked Example: minimax module
 
-详见 `examples/minimax/`：
+详见 `library/minimax/`：
 - `module.md`：5 个子 API（T2I / T2V / music / TTS / LLM）合并到一个 module
 - `credentials.example.json`：占位模板
 

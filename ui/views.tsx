@@ -3,9 +3,19 @@ import { html, raw } from "hono/html";
 import { marked } from "marked";
 import type { Module, CredentialField } from "./modules";
 
-const QUICK_START = ["minimax", "cloudflare", "anthropic"];
+/**
+ * Design system — derived from leonxlnx/taste-skill (anti-slop frontend) +
+ * refero.design (editorial / curatorial gallery aesthetic).
+ *
+ * - Font: Geist (taste-skill bans Inter); fallback to system stack
+ * - Palette: warm-neutral stone/zinc base, one desaturated amber accent
+ *   (forbidden: AI-purple/blue, oversaturated accents, pure #000)
+ * - Layout: divide-y row-based lists, not 3-column equal card grids
+ * - Density: ~5 (daily app, comfortable but not gallery-sparse)
+ * - Motion: CSS-only, transform + opacity, ~150ms cubic-bezier
+ */
 
-function Layout(props: { title: string; active: "home" | "examples" | ""; children: unknown }) {
+function Layout(props: { title: string; active: "home" | "library" | ""; children: unknown }) {
   return html`<!doctype html>
 <html lang="en">
 <head>
@@ -14,62 +24,126 @@ function Layout(props: { title: string; active: "home" | "examples" | ""; childr
   <title>${props.title} · Trove</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
-    .prose pre { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-size: 0.85rem; }
-    .prose code { font-family: ui-monospace, monospace; font-size: 0.85em; }
-    .prose :not(pre) > code { background: #f1f5f9; padding: 0.15rem 0.35rem; border-radius: 0.25rem; }
-    .prose h1 { font-size: 1.6rem; font-weight: 700; margin: 1.5rem 0 0.75rem; }
-    .prose h2 { font-size: 1.25rem; font-weight: 600; margin: 1.5rem 0 0.5rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
-    .prose h3 { font-size: 1.05rem; font-weight: 600; margin: 1rem 0 0.5rem; }
-    .prose p, .prose ul, .prose ol { margin: 0.5rem 0; line-height: 1.65; }
-    .prose ul { list-style: disc; padding-left: 1.5rem; }
+    :root {
+      --bg: #fafaf9;
+      --surface: #ffffff;
+      --ink: #0a0a0a;
+      --ink-2: #404040;
+      --ink-3: #737373;
+      --ink-4: #a3a3a3;
+      --line: #e7e5e4;
+      --line-soft: #f5f5f4;
+      --accent: #b45309;
+      --accent-soft: #fef3c7;
+      --good: #15803d;
+      --good-soft: #dcfce7;
+      --warn: #b45309;
+      --warn-soft: #fef3c7;
+      --bad: #b91c1c;
+      --bad-soft: #fee2e2;
+    }
+    html, body { background: var(--bg); color: var(--ink); font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; font-feature-settings: 'ss01', 'cv11'; }
+    code, pre, .mono { font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+    a { color: inherit; }
+    .hairline { border-color: var(--line); }
+    .hairline-soft { border-color: var(--line-soft); }
+    .accent { color: var(--accent); }
+    .link-hover:hover { color: var(--accent); }
+    .row-hover { transition: background-color 150ms cubic-bezier(0.16, 1, 0.3, 1), transform 150ms cubic-bezier(0.16, 1, 0.3, 1); }
+    .row-hover:hover { background-color: var(--line-soft); }
+    .row-hover:active { transform: translateY(1px); }
+    .btn-primary { background: var(--ink); color: var(--bg); transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1), background 150ms; }
+    .btn-primary:hover { background: var(--ink-2); }
+    .btn-primary:active { transform: translateY(1px); }
+    .btn-quiet { background: var(--line-soft); color: var(--ink-2); transition: background 150ms; }
+    .btn-quiet:hover { background: var(--line); }
+    .input { background: var(--surface); border: 1px solid var(--line); transition: border-color 150ms; }
+    .input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(10,10,10,0.06); }
+    .chip { background: var(--line-soft); color: var(--ink-2); }
+    .surface { background: var(--surface); border: 1px solid var(--line); }
+    .surface-inset { background: var(--line-soft); }
+    .status-good { background: var(--good-soft); color: var(--good); }
+    .status-warn { background: var(--warn-soft); color: var(--warn); }
+    .status-bad { background: var(--bad-soft); color: var(--bad); }
+    .status-mute { background: var(--line-soft); color: var(--ink-3); }
+    .dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; }
+    .display { font-weight: 600; letter-spacing: -0.02em; }
+    .prose pre { background: #18181b; color: #f4f4f5; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.85rem; line-height: 1.55; }
+    .prose code { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 0.88em; }
+    .prose :not(pre) > code { background: var(--line-soft); padding: 0.1rem 0.35rem; border-radius: 3px; }
+    .prose h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; margin: 1.75rem 0 0.75rem; }
+    .prose h2 { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.015em; margin: 1.75rem 0 0.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+    .prose h2:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+    .prose h3 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 0.5rem; }
+    .prose p, .prose ul, .prose ol { margin: 0.55rem 0; line-height: 1.7; color: var(--ink-2); }
+    .prose ul { list-style: none; padding-left: 0; }
+    .prose ul > li { padding-left: 1.25rem; position: relative; }
+    .prose ul > li::before { content: ''; position: absolute; left: 0.25rem; top: 0.85rem; width: 4px; height: 4px; background: var(--ink-4); border-radius: 999px; }
     .prose ol { list-style: decimal; padding-left: 1.5rem; }
-    .prose a { color: #0369a1; text-decoration: underline; }
-    .prose blockquote { border-left: 3px solid #cbd5e1; padding-left: 1rem; color: #475569; }
+    .prose a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+    .prose blockquote { border-left: 2px solid var(--line); padding-left: 1rem; color: var(--ink-3); margin: 1rem 0; }
+    .prose table { border-collapse: collapse; margin: 1rem 0; width: 100%; font-size: 0.9em; }
+    .prose th, .prose td { border-bottom: 1px solid var(--line); padding: 0.5rem 0.75rem; text-align: left; }
+    .prose th { background: var(--line-soft); font-weight: 600; }
+    .prose strong { color: var(--ink); font-weight: 600; }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900 min-h-screen">
-  <nav class="border-b border-slate-200 bg-white">
-    <div class="max-w-6xl mx-auto px-6 py-3 flex items-center gap-6">
-      <a href="/" class="font-semibold text-lg">Trove</a>
-      <a href="/" class="${props.active === "home" ? "text-slate-900 font-medium" : "text-slate-500 hover:text-slate-900"}">Modules</a>
-      <a href="/examples" class="${props.active === "examples" ? "text-slate-900 font-medium" : "text-slate-500 hover:text-slate-900"}">Examples</a>
-      <span class="ml-auto text-xs text-slate-400">localhost:7821 · v0.2</span>
+<body class="min-h-[100dvh] antialiased">
+  <header class="border-b hairline bg-[var(--bg)]/95 backdrop-blur sticky top-0 z-10">
+    <div class="max-w-[1100px] mx-auto px-6 lg:px-10 py-4 flex items-baseline gap-8">
+      <a href="/" class="display text-lg tracking-tight">Trove</a>
+      <nav class="flex items-baseline gap-6 text-sm">
+        <a href="/" class="${props.active === "home" ? "text-[var(--ink)] font-medium" : "text-[var(--ink-3)] link-hover"}">Modules</a>
+        <a href="/library" class="${props.active === "library" ? "text-[var(--ink)] font-medium" : "text-[var(--ink-3)] link-hover"}">Library</a>
+      </nav>
+      <div class="ml-auto text-[11px] mono text-[var(--ink-4)] tabular-nums">127.0.0.1:7821 · v0.2</div>
     </div>
-  </nav>
-  <main class="max-w-6xl mx-auto px-6 py-8">
+  </header>
+  <main class="max-w-[1100px] mx-auto px-6 lg:px-10 py-10">
     ${props.children}
   </main>
 </body>
 </html>`;
 }
 
-const statusBadge: Record<Module["credentialsFilled"], { label: string; cls: string }> = {
-  complete: { label: "credentials ✓", cls: "bg-emerald-100 text-emerald-700" },
-  partial: { label: "credentials partial", cls: "bg-amber-100 text-amber-700" },
-  missing: { label: "credentials missing", cls: "bg-rose-100 text-rose-700" },
-  "n/a": { label: "no credentials", cls: "bg-slate-100 text-slate-600" },
+const statusMeta: Record<Module["credentialsFilled"], { label: string; cls: string }> = {
+  complete: { label: "ready", cls: "status-good" },
+  partial: { label: "partial", cls: "status-warn" },
+  missing: { label: "missing", cls: "status-bad" },
+  "n/a": { label: "no creds", cls: "status-mute" },
 };
 
-function ModuleCard(props: { mod: Module; href: string }) {
+function StatusDot(props: { status: Module["credentialsFilled"] }) {
+  const dotColor: Record<Module["credentialsFilled"], string> = {
+    complete: "var(--good)",
+    partial: "var(--warn)",
+    missing: "var(--bad)",
+    "n/a": "var(--ink-4)",
+  };
+  return html`<span class="dot" style="background:${dotColor[props.status]}"></span>`;
+}
+
+function ModuleRow(props: { mod: Module; href: string }) {
   const fm = props.mod.frontmatter;
-  const badge = statusBadge[props.mod.credentialsFilled];
   return html`
-    <a href="${props.href}" class="block rounded-lg border border-slate-200 bg-white p-4 hover:border-slate-400 hover:shadow-sm transition">
-      <div class="flex items-start justify-between gap-2">
-        <div class="font-medium text-slate-900">${fm.name ?? props.mod.name}</div>
-        <span class="text-[11px] text-slate-400 font-mono">${fm.version ?? "–"}</span>
+    <a href="${props.href}" class="row-hover block border-b hairline-soft px-2 -mx-2 py-4 group">
+      <div class="flex items-baseline gap-3">
+        <span class="display text-[15px] text-[var(--ink)]">${fm.name ?? props.mod.name}</span>
+        <span class="mono text-[11px] text-[var(--ink-4)] tabular-nums">${fm.version ?? ""}</span>
+        ${fm.category ? html`<span class="text-[11px] text-[var(--ink-3)] tracking-wide uppercase">${fm.category}</span>` : ""}
+        <span class="ml-auto inline-flex items-center gap-1.5 text-[11px] text-[var(--ink-3)]">${StatusDot({ status: props.mod.credentialsFilled })}${statusMeta[props.mod.credentialsFilled].label}</span>
       </div>
-      <div class="mt-1 text-sm text-slate-600 line-clamp-2">${fm.description ?? raw("&nbsp;")}</div>
-      ${props.mod.source === "installed"
-        ? html`<div class="mt-3"><span class="text-[11px] px-2 py-0.5 rounded ${badge.cls}">${badge.label}</span></div>`
+      ${fm.description
+        ? html`<div class="mt-1.5 text-[13.5px] text-[var(--ink-2)] leading-relaxed max-w-[80ch]">${fm.description}</div>`
         : ""}
       ${fm.applies_to && fm.applies_to.length > 0
-        ? html`<div class="mt-3 flex flex-wrap gap-1">
-            ${fm.applies_to.slice(0, 3).map(
-              (tag) => html`<span class="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-600">${tag}</span>`,
-            )}
-            ${fm.applies_to.length > 3 ? html`<span class="text-[11px] text-slate-400">+${fm.applies_to.length - 3}</span>` : ""}
+        ? html`<div class="mt-2 flex flex-wrap gap-1.5">
+            ${fm.applies_to.slice(0, 3).map((t) => html`<span class="text-[11px] px-1.5 py-0.5 chip rounded">${t}</span>`)}
+            ${fm.applies_to.length > 3 ? html`<span class="text-[11px] text-[var(--ink-4)] px-1">+${fm.applies_to.length - 3} more</span>` : ""}
           </div>`
         : ""}
     </a>`;
@@ -81,23 +155,23 @@ export function homePage(modules: Module[], quickStart: Module[]) {
       title: "Welcome",
       active: "home",
       children: html`
-        <div class="text-center py-12 max-w-2xl mx-auto">
-          <h1 class="text-2xl font-semibold">Welcome to Trove</h1>
-          <p class="mt-3 text-slate-600">
-            Your <code class="text-sm bg-slate-100 px-1.5 py-0.5 rounded">~/.trove/</code> is empty.
-            Install a module to get started — or browse the full
-            <a href="/examples" class="text-sky-700 underline">examples gallery</a>.
+        <section class="pt-8 pb-12">
+          <h1 class="display text-3xl md:text-4xl tracking-tighter leading-none">Nothing in <code class="mono accent text-[0.85em]">~/.trove/</code> yet.</h1>
+          <p class="mt-5 text-[15px] text-[var(--ink-2)] leading-relaxed max-w-[55ch]">
+            Trove is a local file folder. Install a module to copy its
+            template into <code class="mono text-[0.9em]">~/.trove/&lt;name&gt;</code>, then fill credentials through the form.
+            Browse the full <a href="/library" class="accent underline">module library</a> or start with one of these.
           </p>
-          ${quickStart.length > 0
-            ? html`
-                <div class="mt-8 text-left">
-                  <h2 class="text-sm font-medium text-slate-500 uppercase tracking-wide">Quick start</h2>
-                  <div class="mt-3 grid sm:grid-cols-3 gap-3">
-                    ${quickStart.map((m) => ModuleCard({ mod: m, href: `/examples/${m.name}` }))}
-                  </div>
-                </div>`
-            : ""}
-        </div>`,
+        </section>
+        ${quickStart.length > 0
+          ? html`
+              <section class="border-t hairline pt-8">
+                <div class="text-[11px] tracking-[0.15em] uppercase text-[var(--ink-3)] mb-2">Quick start</div>
+                <div class="divide-y hairline-soft">
+                  ${quickStart.map((m) => ModuleRow({ mod: m, href: `/library/${m.name}` }))}
+                </div>
+              </section>`
+          : ""}`,
     });
   }
 
@@ -109,20 +183,41 @@ export function homePage(modules: Module[], quickStart: Module[]) {
   }
   const categories = [...byCategory.entries()].sort(([a], [b]) => a.localeCompare(b));
 
+  const counts = modules.reduce(
+    (acc, m) => {
+      acc[m.credentialsFilled] = (acc[m.credentialsFilled] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<Module["credentialsFilled"], number>,
+  );
+
   return Layout({
     title: "Modules",
     active: "home",
     children: html`
-      <div class="flex items-baseline justify-between mb-6">
-        <h1 class="text-xl font-semibold">Installed modules</h1>
-        <span class="text-sm text-slate-500">${modules.length} module${modules.length === 1 ? "" : "s"} in ~/.trove/</span>
-      </div>
+      <section class="pb-8 flex items-end justify-between gap-6 flex-wrap">
+        <div>
+          <h1 class="display text-3xl md:text-4xl tracking-tighter leading-none">Your modules</h1>
+          <p class="mt-3 text-[13.5px] text-[var(--ink-3)]">
+            ${modules.length} installed in <code class="mono text-[0.95em]">~/.trove/</code>
+            · grouped by category
+          </p>
+        </div>
+        <div class="flex items-center gap-4 text-[12px] text-[var(--ink-3)] tabular-nums">
+          ${(["complete", "partial", "missing", "n/a"] as Module["credentialsFilled"][])
+            .filter((s) => (counts[s] ?? 0) > 0)
+            .map(
+              (s) => html`<span class="inline-flex items-center gap-1.5">${StatusDot({ status: s })}${counts[s]} ${statusMeta[s].label}</span>`,
+            )}
+        </div>
+      </section>
+
       ${categories.map(
-        ([cat, mods]) => html`
-          <section class="mb-8">
-            <h2 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">${cat}</h2>
-            <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              ${mods.map((m) => ModuleCard({ mod: m, href: `/m/${m.name}` }))}
+        ([cat, mods], idx) => html`
+          <section class="${idx === 0 ? "border-t" : ""} hairline pt-6 mb-2">
+            <div class="text-[11px] tracking-[0.15em] uppercase text-[var(--ink-3)] mb-1">${cat}</div>
+            <div class="divide-y hairline-soft">
+              ${mods.map((m) => ModuleRow({ mod: m, href: `/m/${m.name}` }))}
             </div>
           </section>`,
       )}`,
@@ -130,24 +225,19 @@ export function homePage(modules: Module[], quickStart: Module[]) {
 }
 
 function chip(text: string) {
-  return html`<span class="text-xs px-2 py-1 rounded bg-slate-100 text-slate-700">${text}</span>`;
+  return html`<span class="text-[11px] px-2 py-0.5 chip rounded">${text}</span>`;
 }
 
-/**
- * Out-of-band badge fragment. Included alongside the credentials form response
- * so HTMX can swap the header badge at the same time as the form, without a
- * full page reload.
- */
 export function credentialsBadgeOOB(mod: Module) {
-  const badge = statusBadge[mod.credentialsFilled];
-  return html`<span id="cred-badge" hx-swap-oob="true" class="text-xs px-2 py-1 rounded ${badge.cls}">${badge.label}</span>`;
+  const s = statusMeta[mod.credentialsFilled];
+  return html`<span id="cred-badge" hx-swap-oob="true" class="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded ${s.cls}">${StatusDot({ status: mod.credentialsFilled })}${s.label}</span>`;
 }
 
 export function credentialsForm(mod: Module, values: Record<string, string>) {
   const spec = mod.frontmatter.credentials ?? {};
   const keys = Object.keys(spec);
   if (keys.length === 0) {
-    return html`<div id="cred-form" class="text-sm text-slate-500">This module has no credentials.</div>`;
+    return html`<div id="cred-form" class="text-[13px] text-[var(--ink-3)]">This module declares no credentials.</div>`;
   }
   return html`
     <form
@@ -155,7 +245,7 @@ export function credentialsForm(mod: Module, values: Record<string, string>) {
       hx-patch="/api/m/${mod.name}/cred"
       hx-swap="outerHTML"
       hx-target="#cred-form"
-      class="space-y-4"
+      class="space-y-5"
     >
       ${keys.map((key) => {
         const decl: CredentialField = spec[key] ?? {};
@@ -164,42 +254,35 @@ export function credentialsForm(mod: Module, values: Record<string, string>) {
         const id = `cred-${key}`;
         return html`
           <div>
-            <label for="${id}" class="block text-sm font-medium text-slate-700">
-              ${key}
-              ${decl.required ? html`<span class="text-rose-600">*</span>` : ""}
+            <label for="${id}" class="flex items-baseline gap-2 text-[12px] font-medium text-[var(--ink-2)] tracking-wide uppercase">
+              <span class="mono">${key}</span>
+              ${decl.required ? html`<span class="text-[var(--bad)] normal-case tracking-normal text-[10px] font-normal">required</span>` : html`<span class="text-[var(--ink-4)] normal-case tracking-normal text-[10px] font-normal">optional</span>`}
             </label>
             ${renderField({ id, name: key, value, decl, type })}
-            ${decl.help ? html`<p class="mt-1 text-xs text-slate-500">${decl.help}</p>` : ""}
+            ${decl.help ? html`<p class="mt-1.5 text-[12px] text-[var(--ink-3)] leading-relaxed max-w-[70ch]">${decl.help}</p>` : ""}
           </div>`;
       })}
-      <div class="flex items-center gap-3 pt-2">
-        <button type="submit" class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm hover:bg-slate-700">
+      <div class="flex items-center gap-3 pt-2 border-t hairline-soft">
+        <button type="submit" class="btn-primary px-3.5 py-1.5 rounded text-[13px] font-medium">
           Save credentials
         </button>
-        <span class="text-xs text-slate-400">Password fields show <code>••••••••</code> if already set. Leave masked to keep, replace to change, clear to delete.</span>
+        <span class="text-[11px] text-[var(--ink-4)] leading-relaxed">
+          Password fields show <code class="mono">••••••••</code> if set. Leave masked to keep, replace to change, clear to delete.
+        </span>
       </div>
     </form>`;
 }
 
-function renderField(p: {
-  id: string;
-  name: string;
-  value: string;
-  decl: CredentialField;
-  type: string;
-}) {
-  const base = "mt-1 w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500";
+function renderField(p: { id: string; name: string; value: string; decl: CredentialField; type: string }) {
+  const base = "input mt-1.5 w-full rounded px-3 py-2 text-[14px] text-[var(--ink)] placeholder-[var(--ink-4)]";
   if (p.type === "select" && p.decl.options) {
     return html`
       <select id="${p.id}" name="${p.name}" class="${base}">
-        ${p.decl.options.map(
-          (opt) =>
-            html`<option value="${opt}" ${opt === p.value ? "selected" : ""}>${opt}</option>`,
-        )}
+        ${p.decl.options.map((opt) => html`<option value="${opt}" ${opt === p.value ? "selected" : ""}>${opt}</option>`)}
       </select>`;
   }
   if (p.type === "multiline") {
-    return html`<textarea id="${p.id}" name="${p.name}" rows="3" class="${base} font-mono">${p.value}</textarea>`;
+    return html`<textarea id="${p.id}" name="${p.name}" rows="4" class="${base} mono text-[12.5px] leading-relaxed">${p.value}</textarea>`;
   }
   if (p.type === "boolean") {
     return html`
@@ -209,146 +292,148 @@ function renderField(p: {
       </select>`;
   }
   const inputType = p.type === "password" ? "password" : p.type === "number" ? "number" : p.type === "url" ? "url" : "text";
-  return html`<input id="${p.id}" name="${p.name}" type="${inputType}" value="${p.value}" class="${base}" autocomplete="off" />`;
+  return html`<input id="${p.id}" name="${p.name}" type="${inputType}" value="${p.value}" class="${base} ${p.type === "password" || p.type === "url" ? "mono text-[12.5px]" : ""}" autocomplete="off" />`;
 }
 
 export function modulePage(mod: Module, credValues: Record<string, string>) {
   const fm = mod.frontmatter;
-  const badge = statusBadge[mod.credentialsFilled];
+  const s = statusMeta[mod.credentialsFilled];
   const skillHtml = marked.parse(mod.body, { async: false }) as string;
 
   return Layout({
     title: mod.name,
     active: "home",
     children: html`
-      <div class="mb-6">
-        <a href="/" class="text-sm text-slate-500 hover:text-slate-900">← Modules</a>
-      </div>
+      <a href="/" class="text-[12px] text-[var(--ink-3)] link-hover inline-flex items-center gap-1 mb-6">← All modules</a>
 
-      <header class="mb-6 flex flex-wrap items-baseline gap-3">
-        <h1 class="text-2xl font-semibold">${fm.name ?? mod.name}</h1>
-        <span class="text-xs text-slate-400 font-mono">${fm.version ?? ""}</span>
-        ${fm.category ? chip(fm.category) : ""}
-        <span id="cred-badge" class="text-xs px-2 py-1 rounded ${badge.cls}">${badge.label}</span>
+      <header class="pb-8 border-b hairline">
+        <div class="flex items-baseline gap-3 flex-wrap">
+          <h1 class="display text-3xl md:text-4xl tracking-tighter leading-none">${fm.name ?? mod.name}</h1>
+          <span class="mono text-[12px] text-[var(--ink-4)] tabular-nums">${fm.version ?? ""}</span>
+          ${fm.category ? html`<span class="text-[11px] text-[var(--ink-3)] tracking-wide uppercase">${fm.category}</span>` : ""}
+          <span id="cred-badge" class="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded ${s.cls}">${StatusDot({ status: mod.credentialsFilled })}${s.label}</span>
+        </div>
+        ${fm.description ? html`<p class="mt-4 text-[15px] text-[var(--ink-2)] leading-relaxed max-w-[80ch]">${fm.description}</p>` : ""}
         ${fm.homepage
-          ? html`<a href="${fm.homepage}" target="_blank" rel="noopener" class="ml-auto text-sm text-sky-700 hover:underline">${fm.homepage} ↗</a>`
+          ? html`<div class="mt-3 text-[12.5px]"><a href="${fm.homepage}" target="_blank" rel="noopener" class="accent underline">${fm.homepage} ↗</a></div>`
+          : ""}
+        ${mod.parseError
+          ? html`<div class="mt-4 inline-flex text-[12px] px-2 py-1 rounded status-warn">Frontmatter warning: ${mod.parseError}</div>`
           : ""}
       </header>
 
-      ${mod.parseError
-        ? html`<div class="mb-4 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            Frontmatter parse warning: ${mod.parseError}
-          </div>`
-        : ""}
-
-      ${fm.description ? html`<p class="text-slate-700 mb-6">${fm.description}</p>` : ""}
-
       ${fm.applies_to && fm.applies_to.length > 0
         ? html`
-            <section class="mb-6">
-              <h2 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Applies to</h2>
-              <div class="flex flex-wrap gap-2">${fm.applies_to.map((t) => chip(t))}</div>
+            <section class="py-6 border-b hairline">
+              <div class="text-[11px] tracking-[0.15em] uppercase text-[var(--ink-3)] mb-3">Applies to</div>
+              <div class="flex flex-wrap gap-1.5">${fm.applies_to.map((t) => chip(t))}</div>
             </section>`
         : ""}
 
-      <section class="mb-8">
-        <h2 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">Credentials</h2>
-        <div class="rounded-lg border border-slate-200 bg-white p-5">
+      <section class="py-6 border-b hairline">
+        <div class="text-[11px] tracking-[0.15em] uppercase text-[var(--ink-3)] mb-3">Credentials</div>
+        <div class="surface-inset rounded-lg p-5">
           ${credentialsForm(mod, credValues)}
         </div>
       </section>
 
-      <section class="mb-8">
-        <h2 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">Skill</h2>
-        <article class="prose max-w-none rounded-lg border border-slate-200 bg-white p-6">
-          ${raw(skillHtml)}
-        </article>
+      <section class="pt-6">
+        <div class="text-[11px] tracking-[0.15em] uppercase text-[var(--ink-3)] mb-3">Skill</div>
+        <article class="prose max-w-none">${raw(skillHtml)}</article>
       </section>`,
   });
 }
 
-export function examplesPage(examples: Module[], installedNames: Set<string>) {
+export function libraryPage(items: Module[], installedNames: Set<string>) {
   return Layout({
-    title: "Examples",
-    active: "examples",
+    title: "Library",
+    active: "library",
     children: html`
-      <div class="flex items-baseline justify-between mb-6">
-        <h1 class="text-xl font-semibold">Examples gallery</h1>
-        <span class="text-sm text-slate-500">${examples.length} bundled example${examples.length === 1 ? "" : "s"}</span>
-      </div>
-      <p class="text-sm text-slate-600 mb-6 max-w-2xl">
-        Bundled module templates shipped with this build. Install one to copy its
-        <code class="text-xs bg-slate-100 px-1 rounded">module.md</code> into
-        <code class="text-xs bg-slate-100 px-1 rounded">~/.trove/</code>.
-        Credentials stay empty until you fill them.
-      </p>
-      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        ${examples.map(
-          (ex) => html`
-            <div class="rounded-lg border border-slate-200 bg-white p-4 flex flex-col">
-              <div class="flex items-start justify-between gap-2">
-                <a href="/examples/${ex.name}" class="font-medium text-slate-900 hover:underline">${ex.frontmatter.name ?? ex.name}</a>
-                <span class="text-[11px] text-slate-400 font-mono">${ex.frontmatter.version ?? "–"}</span>
+      <section class="pb-8 flex items-end justify-between gap-6 flex-wrap">
+        <div>
+          <h1 class="display text-3xl md:text-4xl tracking-tighter leading-none">Module library</h1>
+          <p class="mt-3 text-[13.5px] text-[var(--ink-3)] max-w-[60ch]">
+            ${items.length} bundled module templates. Install copies <code class="mono text-[0.95em]">module.md</code> into <code class="mono text-[0.95em]">~/.trove/</code>; credentials stay empty until you fill them.
+          </p>
+        </div>
+      </section>
+
+      <section class="border-t hairline pt-4 divide-y hairline-soft">
+        ${items.map((item) => {
+          const fm = item.frontmatter;
+          const installed = installedNames.has(item.name);
+          return html`
+            <div class="py-5 grid grid-cols-1 md:grid-cols-[1fr,auto] gap-4 items-start">
+              <div>
+                <div class="flex items-baseline gap-3 flex-wrap">
+                  <a href="/library/${item.name}" class="display text-[16px] link-hover">${fm.name ?? item.name}</a>
+                  <span class="mono text-[11px] text-[var(--ink-4)] tabular-nums">${fm.version ?? ""}</span>
+                  ${fm.category ? html`<span class="text-[11px] text-[var(--ink-3)] tracking-wide uppercase">${fm.category}</span>` : ""}
+                </div>
+                ${fm.description ? html`<p class="mt-1.5 text-[13.5px] text-[var(--ink-2)] leading-relaxed max-w-[75ch]">${fm.description}</p>` : ""}
+                ${fm.applies_to && fm.applies_to.length > 0
+                  ? html`<div class="mt-2 flex flex-wrap gap-1.5">${fm.applies_to.slice(0, 4).map((t) => chip(t))}</div>`
+                  : ""}
               </div>
-              <div class="mt-1 text-sm text-slate-600 line-clamp-2 flex-1">
-                ${ex.frontmatter.description ?? raw("&nbsp;")}
-              </div>
-              <div class="mt-4 flex items-center gap-2">
-                ${installedNames.has(ex.name)
-                  ? html`<a href="/m/${ex.name}" class="px-2.5 py-1 rounded bg-slate-100 text-slate-700 text-xs">Installed — open</a>`
+              <div class="flex items-center gap-2 md:justify-end">
+                ${installed
+                  ? html`<a href="/m/${item.name}" class="btn-quiet px-3 py-1.5 rounded text-[12px] font-medium inline-flex items-center gap-1.5">${StatusDot({ status: "complete" })}Installed</a>`
                   : html`
+                      <a href="/library/${item.name}" class="text-[12px] text-[var(--ink-3)] link-hover px-2 py-1.5">Preview</a>
                       <form method="post" action="/api/install" class="inline">
-                        <input type="hidden" name="name" value="${ex.name}" />
-                        <button type="submit" class="px-2.5 py-1 rounded bg-slate-900 text-white text-xs hover:bg-slate-700">
-                          Install
-                        </button>
-                      </form>
-                      <a href="/examples/${ex.name}" class="text-xs text-slate-500 hover:underline">Preview</a>`}
+                        <input type="hidden" name="name" value="${item.name}" />
+                        <button type="submit" class="btn-primary px-3 py-1.5 rounded text-[12px] font-medium">Install</button>
+                      </form>`}
               </div>
-            </div>`,
-        )}
-      </div>`,
+            </div>`;
+        })}
+      </section>`,
   });
 }
 
-export function examplePreviewPage(ex: Module, installed: boolean) {
-  const fm = ex.frontmatter;
-  const skillHtml = marked.parse(ex.body, { async: false }) as string;
+export function libraryItemPage(item: Module, installed: boolean) {
+  const fm = item.frontmatter;
+  const skillHtml = marked.parse(item.body, { async: false }) as string;
   return Layout({
-    title: `${ex.name} (example)`,
-    active: "examples",
+    title: `${item.name} · library`,
+    active: "library",
     children: html`
-      <div class="mb-6">
-        <a href="/examples" class="text-sm text-slate-500 hover:text-slate-900">← Examples</a>
-      </div>
-      <header class="mb-6 flex flex-wrap items-baseline gap-3">
-        <h1 class="text-2xl font-semibold">${fm.name ?? ex.name}</h1>
-        <span class="text-xs text-slate-400 font-mono">${fm.version ?? ""}</span>
-        ${fm.category ? chip(fm.category) : ""}
-        <span class="text-xs px-2 py-1 rounded bg-slate-100 text-slate-600">example (read-only)</span>
-        <div class="ml-auto">
-          ${installed
-            ? html`<a href="/m/${ex.name}" class="px-3 py-1.5 rounded bg-slate-100 text-slate-700 text-sm">Installed — open</a>`
-            : html`
-                <form method="post" action="/api/install" class="inline">
-                  <input type="hidden" name="name" value="${ex.name}" />
-                  <button type="submit" class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm hover:bg-slate-700">
-                    Install to ~/.trove/${ex.name}
-                  </button>
-                </form>`}
+      <a href="/library" class="text-[12px] text-[var(--ink-3)] link-hover inline-flex items-center gap-1 mb-6">← Library</a>
+
+      <header class="pb-8 border-b hairline">
+        <div class="flex items-baseline gap-3 flex-wrap">
+          <h1 class="display text-3xl md:text-4xl tracking-tighter leading-none">${fm.name ?? item.name}</h1>
+          <span class="mono text-[12px] text-[var(--ink-4)] tabular-nums">${fm.version ?? ""}</span>
+          ${fm.category ? html`<span class="text-[11px] text-[var(--ink-3)] tracking-wide uppercase">${fm.category}</span>` : ""}
+          <span class="text-[11px] px-2 py-1 rounded status-mute">library</span>
+          <div class="ml-auto">
+            ${installed
+              ? html`<a href="/m/${item.name}" class="btn-quiet px-3 py-1.5 rounded text-[12.5px] font-medium inline-flex items-center gap-1.5">${StatusDot({ status: "complete" })}Installed</a>`
+              : html`
+                  <form method="post" action="/api/install" class="inline">
+                    <input type="hidden" name="name" value="${item.name}" />
+                    <button type="submit" class="btn-primary px-4 py-2 rounded text-[13px] font-medium">Install to ~/.trove/${item.name}</button>
+                  </form>`}
+          </div>
         </div>
+        ${fm.description ? html`<p class="mt-4 text-[15px] text-[var(--ink-2)] leading-relaxed max-w-[80ch]">${fm.description}</p>` : ""}
+        ${fm.homepage
+          ? html`<div class="mt-3 text-[12.5px]"><a href="${fm.homepage}" target="_blank" rel="noopener" class="accent underline">${fm.homepage} ↗</a></div>`
+          : ""}
       </header>
-      ${fm.description ? html`<p class="text-slate-700 mb-6">${fm.description}</p>` : ""}
+
       ${fm.applies_to && fm.applies_to.length > 0
         ? html`
-            <section class="mb-6">
-              <h2 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Applies to</h2>
-              <div class="flex flex-wrap gap-2">${fm.applies_to.map((t) => chip(t))}</div>
+            <section class="py-6 border-b hairline">
+              <div class="text-[11px] tracking-[0.15em] uppercase text-[var(--ink-3)] mb-3">Applies to</div>
+              <div class="flex flex-wrap gap-1.5">${fm.applies_to.map((t) => chip(t))}</div>
             </section>`
         : ""}
-      <article class="prose max-w-none rounded-lg border border-slate-200 bg-white p-6">
-        ${raw(skillHtml)}
-      </article>`,
+
+      <section class="pt-6">
+        <div class="text-[11px] tracking-[0.15em] uppercase text-[var(--ink-3)] mb-3">Skill</div>
+        <article class="prose max-w-none">${raw(skillHtml)}</article>
+      </section>`,
   });
 }
 
@@ -357,10 +442,10 @@ export function notFoundPage(what: string) {
     title: "Not found",
     active: "",
     children: html`
-      <div class="py-12 text-center">
-        <h1 class="text-xl font-semibold">Not found</h1>
-        <p class="mt-2 text-slate-500">${what}</p>
-        <a href="/" class="mt-4 inline-block text-sm text-sky-700 underline">Back to modules</a>
-      </div>`,
+      <section class="py-16">
+        <h1 class="display text-3xl tracking-tighter">Not found</h1>
+        <p class="mt-3 text-[14px] text-[var(--ink-3)]">${what}</p>
+        <a href="/" class="mt-6 inline-block btn-quiet px-3 py-1.5 rounded text-[13px]">← Back to modules</a>
+      </section>`,
   });
 }

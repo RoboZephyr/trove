@@ -9,9 +9,9 @@ Trove is a hobby OSS project. There is no fixed timeline. Items are roughly orde
 **Goal**: format spec is stable, the author actually uses it daily across personal projects.
 
 - [x] Format spec draft ([SPEC.md](./SPEC.md))
-- [x] Worked example: `examples/minimax/`
-- [x] Worked example: `examples/cloudflare/`
-- [x] Worked examples: anthropic, supabase, openrouter, fal-ai, github-robozephyr, github-a404coder (8 modules total)
+- [x] Worked module: `library/minimax/`
+- [x] Worked module: `library/cloudflare/`
+- [x] Library expansion (mid-2026): 18 modules across LLM / search / payments / analytics / video gen / identity
 - [x] `trove validate` — frontmatter + credentials.json field alignment check, with `.example.json` fallback
 - [x] Real-world dogfood log (SPEC §10): 5 entries from actual usage so far, each producing a SPEC revision
 - [ ] More modules: resend (email), upstash (redis), neon/turso (db), replicate / groq (AI)

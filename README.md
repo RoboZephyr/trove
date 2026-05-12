@@ -56,14 +56,14 @@ See:
 # 1. Create your trove
 mkdir -p ~/.trove
 
-# 2. Add a module (e.g. copy from this repo's examples/)
-cp -r examples/minimax ~/.trove/
+# 2. Add a module (copy from this repo's library/)
+cp -r library/minimax ~/.trove/
 chmod 600 ~/.trove/minimax/credentials.json
 
 # 3. Fill in your real credentials
 $EDITOR ~/.trove/minimax/credentials.json
-# ⚠️ This is the v0.1 fallback. v0.2 ships `trove ui` with AI-guided credential entry
-# that avoids leaking secrets into shell history / screenshots.
+# ⚠️ Direct file editing is the fallback. The first-class flow is `trove ui` (v0.2),
+# which keeps secrets out of shell history / screenshots / pair-programming.
 
 # 4. Reference it from any project's CLAUDE.md
 echo '@/Users/you/.trove/minimax/module.md' >> /path/to/project/CLAUDE.md
@@ -74,7 +74,7 @@ cd /path/to/project && claude
 
 The AI now knows MiniMax: how to call it, what gotchas to avoid, where to find the key.
 
-For multi-account scenarios (e.g. multiple GitHub or Cloudflare accounts), make multiple named modules — see `examples/github-robozephyr/` and `examples/github-a404coder/` for a worked example.
+For multi-account scenarios (e.g. multiple GitHub or Cloudflare accounts), duplicate the `library/github-account/` template under a per-account directory name (e.g. `~/.trove/github-personal/`, `~/.trove/github-work/`) and fill each with that account's identity.
 
 ## License
 

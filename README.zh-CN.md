@@ -21,7 +21,7 @@
 ## 文档
 
 - [SPEC.md](./SPEC.md) — v0.1 格式规范（Resource / Module / 引用语法 / inject 机制）
-- `examples/` — worked examples（待补）
+- `library/` — 18 个开箱即用的 module 模板
 
 ## 设计原则
 

@@ -5,7 +5,7 @@
  * Usage:
  *   bun bin/trove-validate.ts <module-dir>           # validate single module
  *   bun bin/trove-validate.ts --all                  # validate all modules under ~/.trove/
- *   bun bin/trove-validate.ts --examples             # validate every example/* in this repo
+ *   bun bin/trove-validate.ts --library              # validate every library/* in this repo
  */
 
 import { parse as parseYaml } from "yaml";
@@ -156,7 +156,7 @@ async function main() {
       "Usage:\n" +
         "  bun bin/trove-validate.ts <module-dir>     # validate single module\n" +
         "  bun bin/trove-validate.ts --all            # validate all modules in ~/.trove/\n" +
-        "  bun bin/trove-validate.ts --examples       # validate all examples/ in this repo",
+        "  bun bin/trove-validate.ts --library        # validate all library/ entries in this repo",
     );
     process.exit(args.length === 0 ? 1 : 0);
   }
@@ -164,9 +164,10 @@ async function main() {
   let modules: string[];
   if (args[0] === "--all") {
     modules = await listModules(resolve(process.env.HOME!, ".trove"));
-  } else if (args[0] === "--examples") {
+  } else if (args[0] === "--library" || args[0] === "--examples") {
+    // --examples kept as alias for backward compat with old docs/snippets
     const here = dirname(fileURLToPath(import.meta.url));
-    modules = await listModules(resolve(here, "..", "examples"));
+    modules = await listModules(resolve(here, "..", "library"));
   } else {
     modules = args.map((a) => resolve(a));
   }
