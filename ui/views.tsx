@@ -117,6 +117,40 @@ const statusMeta: Record<Module["credentialsFilled"], { label: string; cls: stri
   "n/a": { label: "no creds", cls: "status-mute" },
 };
 
+type VerifyTier = "production" | "verified" | "partial" | "pending" | "unknown";
+
+/**
+ * Heuristic parse of free-text `last_verified` field into a coarse status tier,
+ * for color-coding. The string itself stays canonical — this is just for the
+ * badge swatch.
+ */
+function parseVerify(s: string | undefined): { tier: VerifyTier; label: string; full: string } {
+  if (!s) return { tier: "unknown", label: "unverified", full: "" };
+  const low = s.toLowerCase();
+  if (low.startsWith("production")) return { tier: "production", label: "production", full: s };
+  if (low.startsWith("pending")) return { tier: "pending", label: "pending", full: s };
+  if (/blocked|contract ok|no live|not invoked|not e2e|awaiting/.test(low)) {
+    return { tier: "partial", label: "partial", full: s };
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return { tier: "verified", label: "verified", full: s };
+  return { tier: "unknown", label: "unverified", full: s };
+}
+
+const verifyMeta: Record<VerifyTier, { dot: string; cls: string }> = {
+  production: { dot: "var(--good)", cls: "status-good" },
+  verified: { dot: "var(--good)", cls: "status-good" },
+  partial: { dot: "var(--warn)", cls: "status-warn" },
+  pending: { dot: "var(--ink-4)", cls: "status-mute" },
+  unknown: { dot: "var(--ink-4)", cls: "status-mute" },
+};
+
+function VerifyBadge(props: { fm: { last_verified?: string } }) {
+  const v = parseVerify(props.fm.last_verified);
+  return html`<span class="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded ${verifyMeta[v.tier].cls}" title="${v.full}">
+    <span class="dot" style="background:${verifyMeta[v.tier].dot}"></span>${v.label}
+  </span>`;
+}
+
 function StatusDot(props: { status: Module["credentialsFilled"] }) {
   const dotColor: Record<Module["credentialsFilled"], string> = {
     complete: "var(--good)",
@@ -131,10 +165,11 @@ function ModuleRow(props: { mod: Module; href: string }) {
   const fm = props.mod.frontmatter;
   return html`
     <a href="${props.href}" class="row-hover block border-b hairline-soft px-2 -mx-2 py-4 group">
-      <div class="flex items-baseline gap-3">
+      <div class="flex items-baseline gap-3 flex-wrap">
         <span class="display text-[15px] text-[var(--ink)]">${fm.name ?? props.mod.name}</span>
         <span class="mono text-[11px] text-[var(--ink-4)] tabular-nums">${fm.version ?? ""}</span>
         ${fm.category ? html`<span class="text-[11px] text-[var(--ink-3)] tracking-wide uppercase">${fm.category}</span>` : ""}
+        ${VerifyBadge({ fm })}
         <span class="ml-auto inline-flex items-center gap-1.5 text-[11px] text-[var(--ink-3)]">${StatusDot({ status: props.mod.credentialsFilled })}${statusMeta[props.mod.credentialsFilled].label}</span>
       </div>
       ${fm.description
@@ -311,9 +346,13 @@ export function modulePage(mod: Module, credValues: Record<string, string>) {
           <h1 class="display text-3xl md:text-4xl tracking-tighter leading-none">${fm.name ?? mod.name}</h1>
           <span class="mono text-[12px] text-[var(--ink-4)] tabular-nums">${fm.version ?? ""}</span>
           ${fm.category ? html`<span class="text-[11px] text-[var(--ink-3)] tracking-wide uppercase">${fm.category}</span>` : ""}
+          ${VerifyBadge({ fm })}
           <span id="cred-badge" class="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded ${s.cls}">${StatusDot({ status: mod.credentialsFilled })}${s.label}</span>
         </div>
         ${fm.description ? html`<p class="mt-4 text-[15px] text-[var(--ink-2)] leading-relaxed max-w-[80ch]">${fm.description}</p>` : ""}
+        ${fm.last_verified
+          ? html`<p class="mt-3 text-[12px] text-[var(--ink-3)] mono leading-relaxed max-w-[80ch]">verified: ${fm.last_verified}</p>`
+          : ""}
         ${fm.homepage
           ? html`<div class="mt-3 text-[12.5px]"><a href="${fm.homepage}" target="_blank" rel="noopener" class="accent underline">${fm.homepage} ↗</a></div>`
           : ""}
@@ -369,6 +408,7 @@ export function libraryPage(items: Module[], installedNames: Set<string>) {
                   <a href="/library/${item.name}" class="display text-[16px] link-hover">${fm.name ?? item.name}</a>
                   <span class="mono text-[11px] text-[var(--ink-4)] tabular-nums">${fm.version ?? ""}</span>
                   ${fm.category ? html`<span class="text-[11px] text-[var(--ink-3)] tracking-wide uppercase">${fm.category}</span>` : ""}
+                  ${VerifyBadge({ fm })}
                 </div>
                 ${fm.description ? html`<p class="mt-1.5 text-[13.5px] text-[var(--ink-2)] leading-relaxed max-w-[75ch]">${fm.description}</p>` : ""}
                 ${fm.applies_to && fm.applies_to.length > 0
@@ -405,6 +445,7 @@ export function libraryItemPage(item: Module, installed: boolean) {
           <h1 class="display text-3xl md:text-4xl tracking-tighter leading-none">${fm.name ?? item.name}</h1>
           <span class="mono text-[12px] text-[var(--ink-4)] tabular-nums">${fm.version ?? ""}</span>
           ${fm.category ? html`<span class="text-[11px] text-[var(--ink-3)] tracking-wide uppercase">${fm.category}</span>` : ""}
+          ${VerifyBadge({ fm })}
           <span class="text-[11px] px-2 py-1 rounded status-mute">library</span>
           <div class="ml-auto">
             ${installed

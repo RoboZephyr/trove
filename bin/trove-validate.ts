@@ -74,6 +74,14 @@ async function validateModule(dir: string): Promise<Result> {
     );
   }
 
+  // Release-quality gate: every library/installed module should carry a
+  // maintainer-personal verification timestamp. Soft warn — not a hard fail.
+  if (!fm.last_verified) {
+    result.warnings.push(
+      "missing `last_verified` field — release-quality gate (see SPEC §2.1). Tag with `YYYY-MM-DD · <method>` or `pending — <reason>`",
+    );
+  }
+
   // Critical check: skill body should lead with constraints/gotchas, not happy path
   const firstHeading = match[2].match(/^##\s+(.+)$/m)?.[1] ?? "";
   const looksLikeGotchas = /constraint|gotcha|warning|critical|important|⚠/i.test(

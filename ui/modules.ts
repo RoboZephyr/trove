@@ -36,6 +36,7 @@ export interface Frontmatter {
   tags?: string[];
   applies_to?: string[];
   trove_spec?: string;
+  last_verified?: string;
   credentials?: Record<string, CredentialField>;
   mcp?: Record<string, unknown>;
   [k: string]: unknown;
