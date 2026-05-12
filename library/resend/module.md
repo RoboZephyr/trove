@@ -12,6 +12,7 @@ applies_to:
   - newsletter / contact-form forwarding
   - webhook handling for delivered / bounced / complained events
 trove_spec: "0.1"
+last_verified: "production · send.roboz.dev verified end-to-end with cross-module Cloudflare DNS (see SPEC §10)"
 
 credentials:
   RESEND_API_KEY:

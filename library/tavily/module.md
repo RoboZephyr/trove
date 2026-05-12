@@ -11,6 +11,7 @@ applies_to:
   - news / finance vertical search with structured response
   - extracting clean markdown from a known URL (Extract endpoint)
 trove_spec: "0.1"
+last_verified: "2026-05-12 · /search basic-depth real call, 2 results in 0.69s"
 
 credentials:
   TAVILY_API_KEY:

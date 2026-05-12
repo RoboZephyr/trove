@@ -11,6 +11,7 @@ applies_to:
   - video extension / lip-sync / motion-brush effects (advanced features)
   - alternative to minimax-video when you need different style or longer clips
 trove_spec: "0.1"
+last_verified: "2026-05-12 · auth (JWT-HS256) + endpoint contract OK; account out of credits — no live generation tested"
 
 credentials:
   KLING_BASE_URL:

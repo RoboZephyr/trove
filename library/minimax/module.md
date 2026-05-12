@@ -12,6 +12,7 @@ applies_to:
   - text-to-speech / voice cloning / voice mixing
   - LLM chat completion (Chinese-strong)
 trove_spec: "0.1"
+last_verified: "2026-05-12 · image-01 T2I real image URL returned"
 
 credentials:
   MINIMAX_API_KEY:

@@ -11,6 +11,7 @@ applies_to:
   - China-region edge / compliance scenarios where you want to keep traffic inside Aliyun
   - JSON-mode structured extraction (response_format supported on qwen-plus / qwen-turbo)
 trove_spec: "0.1"
+last_verified: "2026-05-12 · qwen-turbo chat completion returned exact requested string"
 
 credentials:
   QWEN_API_KEY:

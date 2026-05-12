@@ -14,6 +14,7 @@ applies_to:
   - resolving user identities (email / mobile → open_id)
   - any task on Lark OpenAPI
 trove_spec: "0.1"
+last_verified: "2026-05-12 · tenant_access_token issued (7200s lifetime) via Lark Open API"
 
 credentials:
   LARK_APP_ID:

@@ -39,6 +39,7 @@ credentials:
     help: "Long-lived OAuth refresh token for the user who authorized access. Generate once via gcloud ADC flow or the google-ads-api npm wizard; reuse forever (unless revoked)"
 
 trove_spec: "0.1"
+last_verified: "pending — refresh token invalid_grant (probably 6-month-idle or rotated); awaiting OAuth re-auth"
 ---
 
 # Google Ads API Usage Guide

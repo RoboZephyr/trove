@@ -12,6 +12,7 @@ applies_to:
   - cache purge after deploy
   - any task using `wrangler` CLI
 trove_spec: "0.1"
+last_verified: "production · trove.roboz.dev deploy + send.roboz.dev DNS write (see SPEC §10)"
 
 credentials:
   CLOUDFLARE_API_TOKEN:

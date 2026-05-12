@@ -23,6 +23,7 @@ credentials:
     help: "Same service-account JSON as google-analytics. Service account email must be added as user on the GSC property at https://search.google.com/search-console/users (Owners → Add user)"
 
 trove_spec: "0.1"
+last_verified: "2026-05-12 · sites.list returned configured site with SA auth"
 ---
 
 # Google Search Console API Usage Guide

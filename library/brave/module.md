@@ -11,6 +11,7 @@ applies_to:
   - privacy-sensitive contexts where you don't want to route queries through Google
   - cross-index diff (run same query on serper + brave, compare gaps)
 trove_spec: "0.1"
+last_verified: "2026-05-12 · /web/search real call, 2 results returned"
 
 credentials:
   BRAVE_API_KEY:

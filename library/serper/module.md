@@ -11,6 +11,7 @@ applies_to:
   - SERP scraping for SEO / market research
   - giving AI agents fresh web context beyond training cutoff
 trove_spec: "0.1"
+last_verified: "2026-05-12 · /search returned organic results, 1 credit consumed"
 
 credentials:
   SERPER_API_KEY:

@@ -11,6 +11,7 @@ applies_to:
   - cost optimization (routing to cheapest available model in a tier)
   - LLM benchmarking / A/B comparison
 trove_spec: "0.1"
+last_verified: "2026-05-12 · anthropic/claude-haiku-4-5 chat completion E2E, $0.000074 cost"
 
 credentials:
   OPENROUTER_API_KEY:

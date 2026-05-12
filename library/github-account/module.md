@@ -11,6 +11,7 @@ applies_to:
   - initializing new local repos that will live under this account
   - troubleshooting "Permission denied" errors when wrong account's key is used
 trove_spec: "0.1"
+last_verified: "production · daily git push / gh CLI by maintainer (identity-config, no API to smoke)"
 
 credentials:
   GITHUB_USER:

@@ -13,6 +13,7 @@ applies_to:
   - audio generation (Stable Audio, MusicGen)
   - speech (TTS, voice cloning, ElevenLabs/Cartesia via fal)
 trove_spec: "0.1"
+last_verified: "2026-05-12 · flux/schnell 512x512 1-step real image generated"
 
 credentials:
   FAL_KEY:

@@ -16,6 +16,7 @@ applies_to:
   - computer use (browser/desktop control)
   - default LLM provider for Trove's AI Authoring feature
 trove_spec: "0.1"
+last_verified: "pending — no API key. Anthropic SDK is structurally similar to verified qwen / openrouter modules; smoke when key available"
 
 credentials:
   ANTHROPIC_API_KEY:

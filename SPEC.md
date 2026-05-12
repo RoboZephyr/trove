@@ -102,10 +102,33 @@ mcp:                          # 可选
 
 **frontmatter 字段**：
 - 必需：`name` / `version` / `trove_spec`
-- 推荐：`category` / `description` / `applies_to`
+- 推荐：`category` / `description` / `applies_to` / `last_verified`
 - 可选：`homepage` / `tags` / `credentials` / `mcp`
 
 **字段类型**（用在 credentials 里）：`text` / `password` / `url` / `select` / `boolean` / `number` / `multiline`
+
+**`last_verified` 字段**（release-quality gate）：
+
+格式：`"YYYY-MM-DD · <method summary>"`，自由文本一行。**该字段就是 module 的发布质量门**——repo 的 `library/` 里出现的 module 必须在 README/Web UI 里被外人看见时是"维护者亲自跑通过"的，否则就是误导。
+
+样例：
+- `last_verified: "2026-05-12 · flux/schnell real image generated via fal-ai"`
+- `last_verified: "2026-05-12 · JWT signed + contract OK; account out of credits — no live gen"`
+- `last_verified: "pending — refresh token expired, awaiting OAuth re-auth"`
+- `last_verified: "production · used daily by maintainer's growth project"`
+
+写法约定：
+1. 凡是经过真实 API/MCP 调用并拿到合理响应 → 写日期 + 一行 method（"image gen E2E"、"oauth + GAQL read"）
+2. 凡是因 billing/quota/scope 阻断但 auth+contract 已验证 → 写日期 + "contract OK / runtime blocked"
+3. 凡是 credential 当前坏 / 没 key → 写 `pending — <reason>`
+4. 凡是有持续生产证据但本会话未 smoke → 写 `production · <evidence>`
+
+**字段不强制**（SPEC §2.1 `last_verified` 是推荐字段不是必需）；但 `trove validate` 会对缺失字段 emit warning，UI 在卡片上会显示「unverified」灰章。
+
+**skill 正文写作要点**（产品成败命门）：
+1. **以反例/易错点开头**而不是 happy path
+2. 真实代码片段，不要伪代码
+3. 计费/限流/错误码单独章节
 
 **skill 正文写作要点**（产品成败命门）：
 1. **以反例/易错点开头**而不是 happy path
@@ -342,6 +365,9 @@ dogfood 时发现的「AI 没按约定走」/「SPEC 没说清」案例都记在
 
 ### 2026-05-12
 
+- **Release-quality gate: `last_verified` 字段 + "未验证不能挂成品"原则**：用户在批量集成 9 个新 module 后划了一条线："未验证就不能当作 successful 产物发布啊"。这条原则升级 Trove 从"我们有 18 个 module 模板"到"我们有 18 个**亲身验证过**的 module 模板"——一个公开 OSS 项目的品牌底线。**修复**：SPEC §2.1 加 `last_verified` 推荐字段（自由文本，`"YYYY-MM-DD · <method>"` 格式），覆盖 4 种状态：(a) 真实 E2E 跑通；(b) auth + contract 通过但 runtime 阻断（计费/quota 等）；(c) pending（缺 key / credential 失效）；(d) production（持续生产证据）。**18 个 module 一次性补完字段**：14 个 ✅ verified，2 个 pending（anthropic 无 key、supabase 待 MCP-shape 重写），2 个特殊状态（kling 账号没钱、google-ads refresh token 失效）。`trove validate` 后续会对缺字段 warn。**衍生原则**：library/ 是 release 面，repo `git clone` 即可见，每个 module 都要带 verification 时间戳。
+- **"漏看 ~/.claude.json 这一层" — 凭证只看 `.personal-data/` 等于只看了一半**：批量集成时只扫了 `.personal-data/credentials/*.env`，错过了 `~/.claude.json` 里**实际在用的 MCP 服务**配置。结果：(1) stripe 写成纯 API-shape，**漏掉 `https://mcp.stripe.com` 这个用户每天用的 hosted HTTP MCP**；(2) google-analytics 写成纯 API-shape，**漏掉 `analytics-mcp`（pipx run, 本地 stdio）这个已注册的 MCP server**；(3) 用户主动指出"supabase 是 mcp" / "stripe 也是 mcp" 才意识到问题面。**根因**：`.personal-data/` 是「人类放凭证的地方」，`~/.claude.json` 是「AI agent 实际消费凭证的地方」——两层完全不同的 audit surface，集成新 module 必须**同时扫两层**。**修复**：(a) Trove 模块迁移 checklist 加一步「先 `jq '.mcpServers // .projects' ~/.claude.json` 列已注册 MCP，逐项映射到 module」；(b) `mcp:` frontmatter 字段需要正式支持两种 sub-schema：`type: stdio` (command/args/env) 和 `type: http` (url) — SPEC v0.2 待写。**衍生原则**：「凭证迁移完整性」必须从**两个 source of truth** 交叉验证：人类的 env 文件 + AI agent 的实际配置。
+- **Verify gate 第一次抓 bug：google-ads refresh token `invalid_grant`**：本会话内对 google-ads 跑 OAuth refresh 时返回 `{"error": "invalid_grant", "error_description": "Bad Request"}`——`.personal-data/credentials/growth/env.sh` 里那个 `GROWTH_GOOGLE_REFRESH_TOKEN` **当前就是坏的**。但用户的 growth 项目最近还在用 google-ads（自述），意味着真的工作 token 已经轮转过、新值没回写到 .personal-data。**根因（猜测）**：(a) Google OAuth refresh token 在 6 个月闲置后被回收；(b) 同一 OAuth client 累计签发 >50 次后最老 token 失效；(c) 用户从某个工具链（gcloud / wrangler-like）拿了新 token 但没同步回 env.sh。**修复**：(a) 该 module 标 `last_verified: "pending — refresh token invalid_grant"`；(b) google-ads module skill body 已经有"refresh token 静默过期"警告，这次成为活体证据；(c) 用户后续需要重跑 `npx google-ads-api wizard` 或类似 OAuth flow，新 token 直接写进 Trove 的 credentials.json（不再回写 .personal-data，让 Trove 成为 single source of truth）。**意义**：`last_verified` 字段 + 真实 smoke 在第一次跑就抓到了 production credential 失效——证明 verify gate 不是 ceremony，是真的能挡 release 翻车。
 - **"Trove module ≠ service-with-API-key" — 装 module 的判据是「你这周内会填凭证去调它」而不是「example 目录有它」**：今晚批量集成尾声把 Tier A 的 anthropic / fal-ai / supabase example 也"顺手装到" `~/.trove/`，credentials.json 空着等用户后填——**这一步是错的**。理由：(1) anthropic：用户用 Claude Code（claude.ai 登录认证，`~/.claude.json` 根本没 api_key 字段），也没在写直连 Anthropic SDK 的项目。module 自己的 description 还写着「default LLM provider for Trove's AI Authoring feature」——AI Authoring 已按 design-v0.2 **dropped** 了。double-stale。(2) fal-ai：`.personal-data/` 完全没 fal key，用户从未 onboard。(3) supabase：用户使用模式是 supabase-mcp（MCP server），example 却是 API-first（要 5 个字段：URL / anon / service_role / project_ref / db_password），shape 错位。**修复**：把这 3 个从 `~/.trove/` 卸载，repo 的 `examples/` 保留（别人可能用 API-direct 方式）。**衍生原则**：Trove module 至少有 5 种形态——纯身份配置（github-*，全 default 无 secret）/ CLI-shape（lark via lark-cli）/ MCP-shape（supabase 未来该这样写：frontmatter 主要描述 MCP server 配置而非 API field）/ API-shape（多数）/ 混合（cloudflare：API token + wrangler CLI）。**install 时机判据**：「你这周内是否会真的填凭证去用」，否则 example 目录就是它的位置。**衍生 SPEC 工作**：supabase / 任何「主要用 MCP 而非直接 API」的服务，需要正式的 MCP-shape module 模板——和 lark 的 CLI-shape 模板平行。
 - **9 个新 module 单晚集成 + Trove 首次"大批量 module 制造"压力测试**：今晚从 `.personal-data/` 把 serper / tavily / brave / kling / qwen / stripe / google-analytics / google-search-console / google-ads 这 9 个服务一次性集成进 Trove + 装到 `~/.trove/` + 填真凭证 + 端到端 smoke。**meta-validation**：有了 v0.2 Web UI scaffold + 一个高质量 module（openrouter）作 reference 之后，"加一个 module" 的边际成本几乎完全是 "research 这个 API 的 gotchas + 写 skill"，Trove 自己的机制（frontmatter / credentials.json / install flow）几乎没产生摩擦。**衍生**：批量生产 module 的真瓶颈是 skill 质量（gotchas 是否真的从 dogfood 沉淀而来 vs 从训练数据生成），不是 Trove 的格式开销。9 个里 6 个用真实 API 调用完整端到端验证（serper / tavily / brave / qwen / GA4 / GSC），3 个只验证了凭证抽取 + 不烧 quota 的 auth 校验（kling 用 401 vs 400 判断 JWT 签名有效、stripe 用 GET /customers 验证 rk_live_ 有读权限、Ads 跳过仅靠 skill 派生自用户已生产的 growth 项目代码）。
 - **SPEC §1 文件型凭证压力测试 + 临时方案**：google-analytics / google-search-console 共用同一份 Google Cloud service-account JSON（~2.5KB）。**问题**：SPEC §1 严格规定模块目录只能有 `module.md` + `credentials.json` 两个字面量文件，但 service account 凭证天生是文件形态。**临时方案 (v0.1.x)**：把 JSON 用 `JSON.stringify` 内联为 credentials.json 里的 multiline 字段（jq -c 一键产出），skill body 教 AI 怎么 `JSON.parse` 出来再传给 SDK。代价是同份 2.5KB JSON 在两个模块各存一份（轮换时改两处）。**SPEC v0.2 待回答**：是否引入 `type: file`（值是路径）或者跨模块凭证引用（如 `credentials_ref: google-cloud-auth` 表示从另一模块继承）。**先记一笔**，等第 N 次跨模块共享凭证时再决定 SPEC 演化路径。
