@@ -13,7 +13,7 @@ applies_to:
   - deploying or invoking Edge Functions
   - any task using `supabase` CLI
 trove_spec: "0.1"
-last_verified: "2026-05-12 · partial — maintainer downstream project actively calls Supabase Edge Functions (`<project-ref>.supabase.co/functions/v1`); endpoint reachable (401 without anon key, confirming project alive). API-shape (PostgREST / auth / storage / realtime) and MCP-shape (supabase-mcp) paths not yet exercised; module skill body documents API but not Edge Functions — Edge Functions section is SPEC-follow-up work"
+last_verified: "production · 2026-05-13 — module's recommended safe profile (`?project_ref=<ref>&read_only=true`) applied to hosted MCP and end-to-end 3-point verified from a real downstream project: (1) `count(*)` on a live transactional table returned the expected row count — SELECT works; (2) `current_user` resolves to `supabase_read_only_user`, a Supabase-managed Postgres role with NO write grants — writes can't succeed at the role-identity layer regardless of session flags (stronger evidence than a wire-rejection since it's identity, not session config); (3) MCP tool surface contains zero cross-project tools (no `list_projects`, no `list_organizations`), and `list_tables(public)` returned only the bound project's tables — project scope enforced at the tool-discovery layer. A concurrent production cross-table query surfaced a real-world stripe-webhook persistence bug in the maintainer's downstream usage (captured into the stripe module's Critical Constraints), confirming the read path is hot. Edge Functions production-active separately. PostgREST / auth / storage / realtime API paths not independently smoke-tested this session — claim is scoped to MCP + Edge Functions."
 
 credentials:
   SUPABASE_URL:
@@ -31,15 +31,15 @@ credentials:
   SUPABASE_PROJECT_REF:
     type: text
     required: false
-    help: "Same as the <ref> in URL. Required for `supabase link` / migrations / DB password operations."
+    help: "The <ref> in your project URL (e.g. abcdwxyz123). Required for `supabase link` / migrations / Edge Function URLs / scoping MCP to one project."
   SUPABASE_DB_PASSWORD:
     type: password
     required: false
     help: "Project Settings → Database. Required for `supabase db push` / direct psql."
 
 mcp:
-  command: npx
-  args: ["-y", "@supabase/mcp-server-supabase@latest", "--access-token=${credential.SUPABASE_SERVICE_ROLE_KEY}"]
+  type: http
+  url: "https://mcp.supabase.com/mcp?project_ref=${credential.SUPABASE_PROJECT_REF}&read_only=true"
 ---
 
 # Supabase Usage Guide
@@ -188,20 +188,62 @@ await supabase.removeChannel(channel);
 
 ## Edge Functions
 
+Edge Functions run on Deno Deploy globally. Three invocation paths in practice:
+
 ```bash
-# Local dev
+# Local dev — runs at http://localhost:54321/functions/v1/<name>
 supabase functions serve hello-world
 
-# Deploy
-supabase functions deploy hello-world
+# Deploy — global Deno Deploy rollout in seconds
+supabase functions deploy hello-world --project-ref $SUPABASE_PROJECT_REF
+```
 
-# Invoke from client
-const { data } = await supabase.functions.invoke('hello-world', {
+**Invocation from client (typed SDK)**:
+```typescript
+const { data, error } = await supabase.functions.invoke('hello-world', {
   body: { name: 'world' },
 });
 ```
 
-Edge Functions run on Deno. Import via `import { ... } from 'npm:package'`. Common dependency mismatch trap with frontend.
+**Invocation via raw HTTP** (any language, server-to-server, cron, webhooks):
+```bash
+curl -X POST "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/hello-world" \
+  -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"world"}'
+```
+
+URL shape: `https://<project-ref>.supabase.co/functions/v1/<fn-name>`. **Auth header is required** — even "public" Edge Functions need `Authorization: Bearer <anon-key>` (no header = 401). For truly public endpoints, set `--no-verify-jwt` at deploy time.
+
+**Production gotchas**:
+- **Deno-only imports**: `import { x } from 'npm:package'` works server-side but cannot share import maps with your frontend bundle — keep functions dependency-isolated
+- **Cold start ~50-200ms**: edge functions sleep when idle; first invocation pays cold-start
+- **`Deno.env.get()` not `process.env`**: Trying to use Node globals throws
+- **`--no-verify-jwt` bypasses the auth header check** — leave it OFF unless you really want public unauthenticated calls (webhooks from external services)
+- **Logs**: `supabase functions logs <name>` for recent invocations; longer retention in dashboard
+
+---
+
+## Supabase MCP (official hosted server)
+
+Supabase ships an **official hosted MCP server** — no install, OAuth-on-first-use, scoped per project. This module's `mcp:` frontmatter resolves to:
+
+```
+https://mcp.supabase.com/mcp?project_ref=<your-ref>&read_only=true
+```
+
+Two important query params:
+
+- **`project_ref=<ref>`** — restricts the MCP server to ONE project (not your whole org). Always set this unless you really want cross-project access
+- **`read_only=true`** — runs all queries as a read-only Postgres role. **Strongly recommended default**: AI agents are prone to "delete everything" missteps. Drop this only for explicit one-shot write tasks, in test mode, with `--project-ref` scoped to a non-prod project
+
+**Auth**: OAuth flow on first `tools/list` call. The agent (Claude Code, Cursor) opens a browser, you approve, the agent stores the token. **No PAT / no service_role in URL** — Supabase deliberately avoided that pattern.
+
+**⚠ Changing URL scope invalidates the OAuth session** — if you originally registered without `?read_only=true&project_ref=...` and now re-register with the safer scoped URL, the cached OAuth token doesn't match the new scope and the connection reports `Needs authentication`. **Re-auth via `/mcp` slash command in Claude Code** (select supabase → browser → approve scoped token). Same applies any time you change `project_ref` / `read_only` / any other param — the new URL is treated as a new connection, not an update to the existing one. Doesn't happen for any other module's MCP because scope-in-URL is a Supabase-specific shape.
+
+**Don't connect to production**: official guidance. Use against a staging / branch project. The combination of `read_only=true` + non-prod `project_ref` is the safe profile.
+
+**Self-hosted stdio variant** exists (`npx -y @supabase/mcp-server-supabase`) but the hosted HTTP form is officially recommended. The stdio form requires a Personal Access Token from https://supabase.com/dashboard/account/tokens — account-level, broader than service_role. Use the hosted form unless you have a specific reason (corporate proxy, offline dev).
 
 ---
 

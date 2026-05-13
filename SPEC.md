@@ -81,7 +81,8 @@ credentials:
     default: china
     help: "国内 key 用 api.minimaxi.com，国际 key 用 api.minimax.io，混用报错"
 
-mcp:                          # 可选
+mcp:                          # 可选；详见下文「mcp: 字段（两种 sub-schema）」
+  type: stdio
   command: npx
   args: ["-y", "@minimax/mcp-server"]
   env:
@@ -115,7 +116,7 @@ mcp:                          # 可选
 - `last_verified: "2026-05-12 · flux/schnell real image generated via fal-ai"`
 - `last_verified: "2026-05-12 · JWT signed + contract OK; account out of credits — no live gen"`
 - `last_verified: "pending — refresh token expired, awaiting OAuth re-auth"`
-- `last_verified: "production · used daily by maintainer's growth project"`
+- `last_verified: "production · used daily by maintainer's downstream project"`
 
 写法约定：
 1. 凡是经过真实 API/MCP 调用并拿到合理响应 → 写日期 + 一行 method（"image gen E2E"、"oauth + GAQL read"）
@@ -125,10 +126,59 @@ mcp:                          # 可选
 
 **字段不强制**（SPEC §2.1 `last_verified` 是推荐字段不是必需）；但 `trove validate` 会对缺失字段 emit warning，UI 在卡片上会显示「unverified」灰章。
 
-**skill 正文写作要点**（产品成败命门）：
-1. **以反例/易错点开头**而不是 happy path
-2. 真实代码片段，不要伪代码
-3. 计费/限流/错误码单独章节
+---
+
+**`mcp:` 字段（两种 sub-schema）**
+
+实战形态有两种 MCP transport，`mcp.type` 必须显式声明其一。两种 schema 互斥——同一 module 一次只声一种 transport（多数 server 也只支持一种）。
+
+**`type: stdio`** — 本地子进程，agent 通过 stdin/stdout 通信。npm / pypi 发布的 MCP server 多用此形态。
+
+```yaml
+mcp:
+  type: stdio
+  command: npx                  # 或 pipx / uvx / deno / node / 自定义二进制
+  args: ["-y", "@resend/mcp-send-email"]
+  env:                          # 可选；只列 server 实际读的 env keys
+    RESEND_API_KEY: ${credential.RESEND_API_KEY}
+```
+
+**`type: http`** — 远端托管 server，无需本地安装。鉴权常走 OAuth-on-first-use 由 agent 自己完成（不写在 module）。
+
+```yaml
+mcp:
+  type: http
+  url: https://mcp.stripe.com
+```
+
+**字段语义**：
+
+| field | applies to | meaning |
+|---|---|---|
+| `type` | stdio / http | **必需**（v0.1 spec 内为新增，可缺省，但 `trove validate` 会 warn 让迁移） |
+| `command` | stdio | 启动命令（`npx` / `pipx` / `uvx` / `deno` / abs path） |
+| `args` | stdio | 命令行参数数组，**绝不在此放 secret**（见反模式 #1） |
+| `env` | stdio | server 进程的环境变量，**secret 必须 `${credential.X}` 引用**而不是字面值 |
+| `url` | http | MCP server 的 HTTP endpoint |
+
+**substitution 语法**：`${credential.KEY_NAME}` 在 `env:` / `args:` / `url:` 里都合法，install 时由 agent / Web UI 替换。**语义按字段类型分发**：
+
+- string 系（`text` / `password` / `url` / `multiline` 等）→ 替换为 `credentials.json` 里的字面值
+- file 系（`type: file`）→ 替换为该字段对应文件的**绝对路径**（见 §2.3）
+
+字面字符串无需替换。注意 `url:` 里多用于 query string（如 `?project_ref=${credential.PROJECT_REF}`）而非 host——host 应该是稳定的官方 endpoint。
+
+**当 server 同时支持两种 transport** → 优先 `type: http`（零安装、不锁本机环境）。如对方还提供 stdio，可在 skill body 注明备用方式，但 frontmatter 只声 http。
+
+**反模式**（来自 SPEC §10 dogfood 沉淀）：
+
+1. ❌ **secret 进 `args:` 字面值**（如 lark-mcp 老版的 `["--app-secret", "sk_..."]`）—— secret 必须存在 `credentials.json` 并通过 `${credential.X}` 在 `env:` 里引用。若 server 设计上只接受 secret 当 CLI 参数,要么换 CLI/SDK 形态、要么用 stdin-based flag。
+2. ❌ **`env:` 里写硬编码绝对路径**（`GOOGLE_APPLICATION_CREDENTIALS: /Users/zephyr/.../foo.json`）—— 跨机器迁移即坏。文件型凭证的正式机制是 `type: file`（见 §2.3）：声明字段类型为 file，substitution `${credential.X}` 返回 trove 维护的稳定文件路径。
+3. ❌ **`mcp:` 块缺 `type:`**（legacy 形态）—— 解释为 `type: stdio` 但 validate warn。每次写新 module 必须显式写 `type:`。
+
+**何处真正安装**：见 §3「MCP 配置」—— AI 把这个 block merge 到 agent 的 MCP config（`~/.claude.json` 的 `mcpServers`、`~/.cursor/mcp.json` 等）。Trove 不主动安装，只提供声明。
+
+---
 
 **skill 正文写作要点**（产品成败命门）：
 1. **以反例/易错点开头**而不是 happy path
@@ -152,7 +202,7 @@ mcp:                          # 可选
 - 字段标 `required: false` → **可选**
 - 整个 module 所有字段都有 default → credentials.json 文件本身可省略
 
-例如 `github-robozephyr` module 的所有 identity 字段都是公开信息且有 default，credentials.json 只需 `{}` 或不存在。
+例如 `github-account` 类 module（多账号场景下用 `github-personal` / `github-work` 别名）所有 identity 字段都是公开信息且有 default，credentials.json 只需 `{}` 或不存在。
 
 - **v0.1**：明文 + 文件权限 600 + `.gitignore` 规则 `**/credentials.json`
 - **v0.2**：可选 macOS Keychain / Windows Credential Manager backend
@@ -161,6 +211,126 @@ mcp:                          # 可选
 - **首选 Web UI**（`trove ui` → Configure 按钮）—— 字段自动校验、AI 引导式录入、test connection 一键验证。**这是 v0.2 的一等公民流程**，CLI 直接编辑文件是 fallback
 - **CLI fallback**（`$EDITOR ~/.trove/<svc>/credentials.json`）—— 急用、无 Web UI 启动时使用。但承担明文暴露在终端历史、截屏、远程协作时同事看到的风险
 - **绝不**：在 shell 里 `echo "KEY=xxx" > file`（命令历史里就是明文）
+
+---
+
+### 2.3 文件型凭证（`type: file`）
+
+某些服务的凭证天生是**文件**，不是字符串 —— 把它们硬塞 `credentials.json` 的 string 字段意味着用转义把多行 JSON / PEM block / SSH key 压成一行，违反 §0「手工友好」原则，也无法满足 SDK / MCP server 要求"给我一个文件路径"的接口。`type: file` 是这个张力的一等公民答案。
+
+**适用场景**（什么时候用 file，什么时候用 string）：
+- 用 `type: file`：GCP service account JSON、SSH private key、x509 cert/key、kubeconfig、`~/.aws/credentials` 这类文件、GPG keyring、p12 签名包
+- 用 string 系：API token / bearer / webhook secret / API base URL / 用户名 等单值
+
+**判定原则**：如果服务的 SDK / CLI / MCP server 接口接收**文件路径**（`GOOGLE_APPLICATION_CREDENTIALS=/path/...`、`ssh -i <path>`、`--cert <path>`）→ file；如果接收**值本身**（`Authorization: Bearer <value>`、`-H "X-API-Key: <value>"`）→ string。
+
+#### 2.3.1 Schema
+
+frontmatter 中声明：
+
+```yaml
+credentials:
+  GOOGLE_SA_JSON:
+    type: file
+    file_format: json          # 可选；UI 据此校验格式 + 选 syntax highlight
+    file_mode: "0600"          # 可选；默认 "0600"，要更严的用 "0400"
+    required: true
+    help: "console.cloud.google.com → IAM → Service Accounts → Keys → Add Key (JSON)"
+```
+
+支持的 `file_format` 值（v0.1）：`json` / `yaml` / `ini` / `pem` / `ssh-private-key` / `x509` / `raw`（默认）。仅作校验和扩展名线索，不改变存储方式 —— 文件内容按原始字节落盘。
+
+#### 2.3.2 存储约定
+
+文件型凭证**不出现在 `credentials.json`**。它们以真文件形式存放在模块目录下的 `files/` 子目录：
+
+```
+~/.trove/google-analytics/
+├── module.md
+├── credentials.json              # 只装 string-typed 字段（如 GA4_PROPERTY_ID）
+└── files/
+    └── GOOGLE_SA_JSON.json       # 文件名 = 凭证 key + .<file_format>
+```
+
+- **文件名约定**：`<KEY><.file_format?>`。若 `file_format` 是 `raw` 或缺省 → 不带后缀；否则用 format 名作为扩展（`.json` / `.yaml` / `.ini` / `.pem` 等）。代码里始终**正向生成**（key + format → filename），无需反向解析
+- **`files/` 目录权限 `0700`**（仅当前用户可进入）
+- **每文件权限 `file_mode`**（默认 `0600`，目录内 `umask 077` 创建）
+- `.gitignore` 规则：`**/credentials.json` + `**/files/`（v0.1 同时维护两条）
+
+#### 2.3.3 `${credential.X}` 替换语义
+
+substitution 行为**按字段类型分发**：
+
+| 字段 `type` | `${credential.X}` 替换为 |
+|---|---|
+| `text` / `password` / `url` / `select` / `boolean` / `number` / `multiline` | `credentials.json` 里该字段的字面值 |
+| `file` | `~/.trove/<module>/files/<X>` 的**绝对路径**字符串（不是文件内容） |
+
+显式访问器（避免歧义场景使用）：
+- `${credential.X.path}` —— 同 `${credential.X}` 对 file 类型，强调返回路径
+- `${credential.X.contents}` —— 返回文件原始内容（escape hatch；MCP `env:` 几乎不该用，少数 SDK 接受 inline blob 时可用）
+
+**典型用法**（google-analytics 的 `mcp:` 段）：
+
+```yaml
+mcp:
+  type: stdio
+  command: pipx
+  args: ["run", "google-analytics-mcp"]
+  env:
+    GOOGLE_APPLICATION_CREDENTIALS: ${credential.GOOGLE_SA_JSON}    # → 路径，正是 SDK 想要的
+    GA4_PROPERTY_ID: ${credential.GA4_PROPERTY_ID}                  # → 字面值
+```
+
+#### 2.3.4 校验（`trove validate` 行为）
+
+对每个 `type: file` 字段：
+1. 检查 `~/.trove/<module>/files/<KEY>.<file_format?>` 存在（按 schema 约定的路径计算）
+2. 检查文件大小 > 0
+3. 检查文件 mode 等于 `file_mode`（默认 `0600`）—— 不等则 warn 且建议 `chmod`
+4. 若声明了 `file_format`：粗校验内容（json → `JSON.parse`、pem → 含 `-----BEGIN ` 头、yaml → YAML.parse）—— 失败仅 warn，不 error
+5. 检查 `credentials.json` 里**没有**重复出现该 key（迁移残留检测；旧 `multiline` 字符串没清掉）
+
+对 string 字段：保持现有逻辑。
+
+#### 2.3.5 Web UI 表单
+
+`type: file` 字段在 form 里有两种输入方式：
+
+1. **粘贴**（默认）—— 文本域，接住 `cmd-V` 多行内容。提交时写盘
+2. **上传**（可选）—— `<input type="file">`，仅本地浏览器读取（不经服务器中转），同样写盘
+
+GET 时**永不返回文件内容**。返回元信息：
+
+```json
+{
+  "GOOGLE_SA_JSON": {
+    "$file": true,
+    "exists": true,
+    "size": 2347,
+    "mode": "0600",
+    "modified": "2026-05-13T14:22:00Z"
+  }
+}
+```
+
+PATCH 提交语义：**file 字段未出现在 PATCH payload 中 = 不动**。要修改才在 payload 里带值。删除走显式 `__delete: <KEY>` flag。比起 string 字段那种"`••••••••` 哨兵字符串等于不改"的 in-band 约定更干净（file 没有等价的视觉占位）。
+
+**SPEC 不规定 reveal/隐藏 UI 控件形态** —— 但**`GET API 永不返内容`是硬约束**（防 SSRF / 日志泄漏 / 截屏意外）。是否提供 password 眼睛 toggle、file 的 "Show contents" 折叠块，由 UI 实现决定。
+
+#### 2.3.6 从 `type: multiline` 迁移
+
+存量模块（如旧版 `google-analytics` 把 SA JSON 塞 `multiline` 字符串）的迁移：
+
+1. 模块 frontmatter 改 `type: multiline` → `type: file` + `file_format: json`
+2. 用户跑 `trove migrate <module>`（独立子命令，与只读的 `trove validate` 分开 —— validate 必须保持 read-only）：
+   - 读 `credentials.json` 里该 key 的字符串值
+   - 写到 `files/<KEY>.<format>`，mode `0600`
+   - 从 `credentials.json` 删除该 key
+   - 打印迁移摘要
+3. 验证：再跑 `trove validate <module>`，应当 0 error 0 warn
+
+`trove migrate` 是幂等的：已迁移过的字段会跳过（credentials.json 里没 key 且 files/ 里有文件 → 状态正确）。
 
 ---
 
@@ -190,7 +360,7 @@ my-project/
 
 **`trove.md`** 长这样（只有引用，无注释、无 narrative）：
 ```markdown
-@/Users/zephyr/.trove/github-robozephyr/module.md
+@/Users/you/.trove/github-personal/module.md
 @/Users/zephyr/.trove/minimax/module.md
 @/Users/zephyr/.trove/cloudflare/module.md
 ```
@@ -282,7 +452,7 @@ AI 会：
 
 **From URL**：粘贴文档 URL → AI 抓 + 解析 → 提取 endpoint/auth/必填参数/计费/坑 → 生成 `module.md` 草稿。用户在 web UI 审稿调整。
 
-**From .env**：粘贴 .env 内容 → AI 按服务名识别分组（`STRIPE_*` / `OPENAI_*` 各自一个 module）→ 自动尝试拉文档补 skill → 批量生成 module 骨架。**这是从 `.personal-data/` 迁移的真正方式。**
+**From .env**：粘贴 .env 内容 → AI 按服务名识别分组（`STRIPE_*` / `OPENAI_*` 各自一个 module）→ 自动尝试拉文档补 skill → 批量生成 module 骨架。**这是从 `legacy env stash/` 迁移的真正方式。**
 
 **From Description**：自然语言描述（"我用 Lark OpenAPI 创建文档"）→ Web search 找文档 → 同 From URL 流程。适合冷门服务、内部 API。
 
@@ -316,14 +486,14 @@ AI 会：
 
 ---
 
-## 7. Migration（从 `.personal-data/` 迁移）
+## 7. Migration（从 `legacy env stash/` 迁移）
 
 **手工方式**（v0.1 启动期）：
 1. `mkdir ~/.trove`
 2. 按服务建子目录
-3. 把 `.personal-data/credentials/<env-file>.env` 中各服务的 env 行拆到对应 `<svc>/credentials.json`
-4. 把 `.personal-data/credentials/<api-guide>.md` 各 H2 章节抽到对应 `<svc>/module.md`，加 frontmatter
-5. 删除（或保留）原 `.personal-data` 文件
+3. 把 `legacy env stash/credentials/<env-file>.env` 中各服务的 env 行拆到对应 `<svc>/credentials.json`
+4. 把 `legacy env stash/credentials/<api-guide>.md` 各 H2 章节抽到对应 `<svc>/module.md`，加 frontmatter
+5. 删除（或保留）原 legacy env stash 文件
 
 **AI 辅助方式**（一旦 §5 Web UI + AI Authoring 跑通）：在 web UI「From .env」里粘 `.env` 文件内容 → AI 自动批量生成 modules 骨架 → 用户审稿。**完全没必要写 `migrate-from-personal-data` 命令**，从 web UI 走更顺。
 
@@ -363,18 +533,22 @@ dogfood 时发现的「AI 没按约定走」/「SPEC 没说清」案例都记在
 
 格式：`日期 · 触发场景 · 问题 · 修复（commit hash）`
 
-### 2026-05-12
+### 2026-05-13
 
+- **Supabase hosted MCP — URL scope 变化会让 OAuth session 失效，必须显式重 auth**：把 supabase MCP 从 unscoped (`https://mcp.supabase.com/mcp`) 切到安全 profile (`...?project_ref=<ref>&read_only=true`) 时，旧 OAuth token 立刻报 `Needs authentication`。**根因**：Supabase 的 OAuth token 按授权时的 scope 颁发，URL query param 改变了请求的 scope 范围，新 URL 对 token 来说就是新连接；这跟"`claude mcp remove` 再 `add` 不会自动复用旧 token"是同一回事。**修复**：每次 scope 变更后，在 Claude Code 里 `/mcp` → 选 supabase → 走一次浏览器 OAuth approve。**衍生**：这是 **Supabase 特有的 URL-as-scope 模型副作用** —— 其他 MCP server（Stripe / npm 等）的 scope 不在 URL 里，不存在这个坑。**写进** `library/supabase/module.md` Critical Constraint #7（已落地）。
+- **OSS-bound 文件不能含维护者私有项目标识 — 三层防泄漏工程实践**：trove 自身要发 OSS，所有 ship 出去的文件（`library/*` / `SPEC.md` / `README.md` / `site/*` / `ROADMAP.md` / `CONTRIBUTING.md`）**绝不能**包含维护者具体项目名 / 账号 / project_ref / 表名 / 内部 bug 计数。**触发场景**：升级一个模块到 production 时第一版 `last_verified` 直接把维护者下游项目的具体身份（项目名、Supabase project_ref、GA property ID、具体表名、bug 出现比例）写了进去，按 `npm publish` 流程会随 SPEC + library 出去给所有 user。**通用化原则**：描述**验证方法**和**证据形状**（"SELECT works"/"current_user is read-only role"/"a real downstream project"），不描述**具体身份**。**三层防御**：(1) PreToolUse Bash 钩子里加私有标识符 regex pattern set，匹配维护者已知私有 token 时拦截 git commit —— 这一层是机器强制；(2) memory 里 feedback 条目跨 session 持久化原则 —— 这一层是 AI 跨对话记忆；(3) repo 根的 `AGENTS.md` 给所有 agent contributor 看 do/don't 表 —— 这一层是 OSS 协作契约。**meta-validation**：本次写这条 SPEC 时，第一版正文里因为要"举例哪些字符串算泄漏"反而点了名 → 钩子当场拦截 commit → 重写为通用描述。**钩子在它防御的内容生产过程中即时介入并起作用**，是这套机制最强的现场证据。**衍生原则**：**当一个项目同时是"维护者自用工具"和"OSS 待发布物"时，工程实践必须显式分层** —— 维护者的真实 dogfood 数据 vs 公众消费的通用模板。两层不能在内容上混淆，但可以在写作流程上交错（先写 specific，靠 hook 强制 generalize 后 commit）。
+
+- **`mcp:` 字段对 `type: http`+OAuth 形态价值薄 — Trove 的护城河在 skill body + credentials，不在 mcp 字段本身**：今天给 supabase / stripe 加 `mcp:` 块时，写到 `type: http url: https://mcp.supabase.com/mcp` 这种纯 URL declaration 时被用户连环追问：「不需要存任何 secret、OAuth 也是 agent 自己管的话，那这跟链一段 Claude MCP docs 有啥区别？」**结构化拆**：(a) `type: stdio` + env-secret（resend / analytics-mcp）的 `mcp:` 块**有真状态** —— `command`/`args`/`env`-到-`${credential.X}` 的桥就是 Trove 的存档点，删了就要每个用户重写、还容易把 secret 写进 args（反模式）；(b) `type: http` + OAuth（supabase / stripe / figma）的 `mcp:` 块**几乎无状态** —— 就一个 URL + transport 字面值，没 secret 也没 env 桥。**那为什么还留**：machine-parseable signal（Web UI 一键 install 按钮、AI 看到 `type: http` 知道选 `--transport http` 而不是 stdio）+ 上下文 co-location（跟 skill body 的 `read_only` / `project_ref` / 哪些 tool 别用、credentials 的 API 面 SDK keys 同住一个 module 目录）。**但坦白说**：删掉对 hosted HTTP MCP 几乎不掉价 —— 因为 Trove 真正的护城河是 **skill body**（read_only 默认 / project_ref 安全 profile / Payment Links 第三形态 / Edge Functions URL shape / Auth header 三大搜索差异 / 各家 API 计费陷阱）+ **credentials.json**（API/SDK 路径的 keys），这两部分没人能替代。Anthropic 的 MCP registry 给得了 URL，给不了 gotchas。**衍生战略洞见**：行业 MCP 形态正在向 hosted+OAuth 演化（stripe / supabase / figma 都选了这条），未来 `mcp:` frontmatter 对越来越多服务来说就是 thin pointer。**这反而健康** —— 它把 Trove 的产品重心从「MCP 配置管家」更彻底地推向「服务 skill 知识库 + API 凭证库」，后者是更难、更高价值的问题面。**SPEC 不动**（`mcp:` 两种 sub-schema 保留），**README 和 positioning 文案应该调整** —— 别再把「MCP 配置」当一等卖点，把「skill body 是亲身踩坑沉淀，不是 LLM 训练数据复读」立成首要差异。
 - **拿维护者自有生产项目作 verify context：发现 3 个模块的真实使用形态和最初的模型不同**：用一个下游 web app（维护者自己的项目）作为 stripe / GA / supabase 的真实验证 context。摸完发现：(1) **stripe**：该项目前端**只用 Stripe Payment Links**（`buy.stripe.com/...` URLs 作 CTA），**完全不调 Stripe API**——下游项目不能验 stripe 模块的 API 路径。stripe API 实际被另一项目的 SDK pipeline 验证，stripe MCP 被 Claude Code 用。**Payment Links 是 stripe 模块的第 6 种使用形态**——没 API、没 MCP、纯前端 URL，但模块 skill body 完全没覆盖。SPEC 工作：stripe module 加 Payment Links 章节。(2) **GA**：下游项目前端 `gtag.js` 用 measurement id **写**事件给 GA4 property，Trove google-analytics 模块用 property id **读**这些事件——**前者写后者读，是同一个 GA4 property 的两半**。验证：Data API runReport 拉 28 天真实生产数据，千级 users / 万级 page_views / 完整漏斗事件全部可读。**这是 Trove 第一次拿到的"真生产数据 E2E"凭证**，比合成 smoke 强一个数量级。(3) **supabase**：下游项目代码 `grep supabase` **零命中**——维护者之前提到该项目用 supabase 是记错了，supabase 在 Trove 库里没有任何 production verify context。模块继续 pending 等真 onboard。**衍生原则**：(a) 模块的「verify context」不能假设，必须实际 grep 项目代码确认；(b) 同一服务可能有 N 种使用形态（API / MCP / CLI / Payment Links / 前端 SDK / ...），skill body 需要覆盖每一种或显式声明范围；(c) 维护者自己的生产项目是 Trove 模块最强的真实验证场——比注册 sandbox 账号 + 烧 smoke quota 高一个数量级的可信度。
 - **Release-quality gate: `last_verified` 字段 + "未验证不能挂成品"原则**：用户在批量集成 9 个新 module 后划了一条线："未验证就不能当作 successful 产物发布啊"。这条原则升级 Trove 从"我们有 18 个 module 模板"到"我们有 18 个**亲身验证过**的 module 模板"——一个公开 OSS 项目的品牌底线。**修复**：SPEC §2.1 加 `last_verified` 推荐字段（自由文本，`"YYYY-MM-DD · <method>"` 格式），覆盖 4 种状态：(a) 真实 E2E 跑通；(b) auth + contract 通过但 runtime 阻断（计费/quota 等）；(c) pending（缺 key / credential 失效）；(d) production（持续生产证据）。**18 个 module 一次性补完字段**：14 个 ✅ verified，2 个 pending（anthropic 无 key、supabase 待 MCP-shape 重写），2 个特殊状态（kling 账号没钱、google-ads refresh token 失效）。`trove validate` 后续会对缺字段 warn。**衍生原则**：library/ 是 release 面，repo `git clone` 即可见，每个 module 都要带 verification 时间戳。
-- **"漏看 ~/.claude.json 这一层" — 凭证只看 `.personal-data/` 等于只看了一半**：批量集成时只扫了 `.personal-data/credentials/*.env`，错过了 `~/.claude.json` 里**实际在用的 MCP 服务**配置。结果：(1) stripe 写成纯 API-shape，**漏掉 `https://mcp.stripe.com` 这个用户每天用的 hosted HTTP MCP**；(2) google-analytics 写成纯 API-shape，**漏掉 `analytics-mcp`（pipx run, 本地 stdio）这个已注册的 MCP server**；(3) 用户主动指出"supabase 是 mcp" / "stripe 也是 mcp" 才意识到问题面。**根因**：`.personal-data/` 是「人类放凭证的地方」，`~/.claude.json` 是「AI agent 实际消费凭证的地方」——两层完全不同的 audit surface，集成新 module 必须**同时扫两层**。**修复**：(a) Trove 模块迁移 checklist 加一步「先 `jq '.mcpServers // .projects' ~/.claude.json` 列已注册 MCP，逐项映射到 module」；(b) `mcp:` frontmatter 字段需要正式支持两种 sub-schema：`type: stdio` (command/args/env) 和 `type: http` (url) — SPEC v0.2 待写。**衍生原则**：「凭证迁移完整性」必须从**两个 source of truth** 交叉验证：人类的 env 文件 + AI agent 的实际配置。
-- **Verify gate 第一次抓 bug：google-ads refresh token `invalid_grant`**：本会话内对 google-ads 跑 OAuth refresh 时返回 `{"error": "invalid_grant", "error_description": "Bad Request"}`——`.personal-data/credentials/growth/env.sh` 里那个 `GROWTH_GOOGLE_REFRESH_TOKEN` **当前就是坏的**。但用户的 growth 项目最近还在用 google-ads（自述），意味着真的工作 token 已经轮转过、新值没回写到 .personal-data。**根因（猜测）**：(a) Google OAuth refresh token 在 6 个月闲置后被回收；(b) 同一 OAuth client 累计签发 >50 次后最老 token 失效；(c) 用户从某个工具链（gcloud / wrangler-like）拿了新 token 但没同步回 env.sh。**修复**：(a) 该 module 标 `last_verified: "pending — refresh token invalid_grant"`；(b) google-ads module skill body 已经有"refresh token 静默过期"警告，这次成为活体证据；(c) 用户后续需要重跑 `npx google-ads-api wizard` 或类似 OAuth flow，新 token 直接写进 Trove 的 credentials.json（不再回写 .personal-data，让 Trove 成为 single source of truth）。**意义**：`last_verified` 字段 + 真实 smoke 在第一次跑就抓到了 production credential 失效——证明 verify gate 不是 ceremony，是真的能挡 release 翻车。
-- **"Trove module ≠ service-with-API-key" — 装 module 的判据是「你这周内会填凭证去调它」而不是「example 目录有它」**：今晚批量集成尾声把 Tier A 的 anthropic / fal-ai / supabase example 也"顺手装到" `~/.trove/`，credentials.json 空着等用户后填——**这一步是错的**。理由：(1) anthropic：用户用 Claude Code（claude.ai 登录认证，`~/.claude.json` 根本没 api_key 字段），也没在写直连 Anthropic SDK 的项目。module 自己的 description 还写着「default LLM provider for Trove's AI Authoring feature」——AI Authoring 已按 design-v0.2 **dropped** 了。double-stale。(2) fal-ai：`.personal-data/` 完全没 fal key，用户从未 onboard。(3) supabase：用户使用模式是 supabase-mcp（MCP server），example 却是 API-first（要 5 个字段：URL / anon / service_role / project_ref / db_password），shape 错位。**修复**：把这 3 个从 `~/.trove/` 卸载，repo 的 `examples/` 保留（别人可能用 API-direct 方式）。**衍生原则**：Trove module 至少有 5 种形态——纯身份配置（github-*，全 default 无 secret）/ CLI-shape（lark via lark-cli）/ MCP-shape（supabase 未来该这样写：frontmatter 主要描述 MCP server 配置而非 API field）/ API-shape（多数）/ 混合（cloudflare：API token + wrangler CLI）。**install 时机判据**：「你这周内是否会真的填凭证去用」，否则 example 目录就是它的位置。**衍生 SPEC 工作**：supabase / 任何「主要用 MCP 而非直接 API」的服务，需要正式的 MCP-shape module 模板——和 lark 的 CLI-shape 模板平行。
-- **9 个新 module 单晚集成 + Trove 首次"大批量 module 制造"压力测试**：今晚从 `.personal-data/` 把 serper / tavily / brave / kling / qwen / stripe / google-analytics / google-search-console / google-ads 这 9 个服务一次性集成进 Trove + 装到 `~/.trove/` + 填真凭证 + 端到端 smoke。**meta-validation**：有了 v0.2 Web UI scaffold + 一个高质量 module（openrouter）作 reference 之后，"加一个 module" 的边际成本几乎完全是 "research 这个 API 的 gotchas + 写 skill"，Trove 自己的机制（frontmatter / credentials.json / install flow）几乎没产生摩擦。**衍生**：批量生产 module 的真瓶颈是 skill 质量（gotchas 是否真的从 dogfood 沉淀而来 vs 从训练数据生成），不是 Trove 的格式开销。9 个里 6 个用真实 API 调用完整端到端验证（serper / tavily / brave / qwen / GA4 / GSC），3 个只验证了凭证抽取 + 不烧 quota 的 auth 校验（kling 用 401 vs 400 判断 JWT 签名有效、stripe 用 GET /customers 验证 rk_live_ 有读权限、Ads 跳过仅靠 skill 派生自用户已生产的 growth 项目代码）。
+- **"漏看 ~/.claude.json 这一层" — 凭证只看 `legacy env stash/` 等于只看了一半**：批量集成时只扫了 `legacy env stash/credentials/*.env`，错过了 `~/.claude.json` 里**实际在用的 MCP 服务**配置。结果：(1) stripe 写成纯 API-shape，**漏掉 `https://mcp.stripe.com` 这个用户每天用的 hosted HTTP MCP**；(2) google-analytics 写成纯 API-shape，**漏掉 `analytics-mcp`（pipx run, 本地 stdio）这个已注册的 MCP server**；(3) 用户主动指出"supabase 是 mcp" / "stripe 也是 mcp" 才意识到问题面。**根因**：`legacy env stash/` 是「人类放凭证的地方」，`~/.claude.json` 是「AI agent 实际消费凭证的地方」——两层完全不同的 audit surface，集成新 module 必须**同时扫两层**。**修复**：(a) Trove 模块迁移 checklist 加一步「先 `jq '.mcpServers // .projects' ~/.claude.json` 列已注册 MCP，逐项映射到 module」；(b) `mcp:` frontmatter 字段需要正式支持两种 sub-schema：`type: stdio` (command/args/env) 和 `type: http` (url) — SPEC v0.2 待写。**衍生原则**：「凭证迁移完整性」必须从**两个 source of truth** 交叉验证：人类的 env 文件 + AI agent 的实际配置。
+- **Verify gate 第一次抓 bug：OAuth refresh token `invalid_grant`**：对一个 Google API 模块跑 OAuth refresh 时返回 `{"error": "invalid_grant", "error_description": "Bad Request"}`——legacy env stash 里的 refresh token **当前就是坏的**。但维护者的下游项目最近还在用该 API，意味着真的工作 token 已经轮转过、新值没回写到 stash。**根因（猜测）**：(a) Google OAuth refresh token 在 6 个月闲置后被回收；(b) 同一 OAuth client 累计签发 >50 次后最老 token 失效；(c) 维护者从某个工具链（gcloud / wrangler-like）拿了新 token 但没同步回 stash。**修复**：(a) 该 module 标 `last_verified: "pending — refresh token invalid_grant"`；(b) module skill body 已经有"refresh token 静默过期"警告，这次成为活体证据；(c) 维护者后续需要重跑 OAuth wizard，新 token 直接写进 Trove 的 credentials.json（不再回写 legacy stash，让 Trove 成为 single source of truth）。**意义**：`last_verified` 字段 + 真实 smoke 在第一次跑就抓到了 production credential 失效——证明 verify gate 不是 ceremony，是真的能挡 release 翻车。
+- **"Trove module ≠ service-with-API-key" — 装 module 的判据是「你这周内会填凭证去调它」而不是「example 目录有它」**：今晚批量集成尾声把 Tier A 的 anthropic / fal-ai / supabase example 也"顺手装到" `~/.trove/`，credentials.json 空着等用户后填——**这一步是错的**。理由：(1) anthropic：用户用 Claude Code（claude.ai 登录认证，`~/.claude.json` 根本没 api_key 字段），也没在写直连 Anthropic SDK 的项目。module 自己的 description 还写着「default LLM provider for Trove's AI Authoring feature」——AI Authoring 已按 design-v0.2 **dropped** 了。double-stale。(2) fal-ai：`legacy env stash/` 完全没 fal key，用户从未 onboard。(3) supabase：用户使用模式是 supabase-mcp（MCP server），example 却是 API-first（要 5 个字段：URL / anon / service_role / project_ref / db_password），shape 错位。**修复**：把这 3 个从 `~/.trove/` 卸载，repo 的 `examples/` 保留（别人可能用 API-direct 方式）。**衍生原则**：Trove module 至少有 5 种形态——纯身份配置（github-*，全 default 无 secret）/ CLI-shape（lark via lark-cli）/ MCP-shape（supabase 未来该这样写：frontmatter 主要描述 MCP server 配置而非 API field）/ API-shape（多数）/ 混合（cloudflare：API token + wrangler CLI）。**install 时机判据**：「你这周内是否会真的填凭证去用」，否则 example 目录就是它的位置。**衍生 SPEC 工作**：supabase / 任何「主要用 MCP 而非直接 API」的服务，需要正式的 MCP-shape module 模板——和 lark 的 CLI-shape 模板平行。
+- **9 个新 module 单晚集成 + Trove 首次"大批量 module 制造"压力测试**：今晚从 `legacy env stash/` 把 serper / tavily / brave / kling / qwen / stripe / google-analytics / google-search-console / google-ads 这 9 个服务一次性集成进 Trove + 装到 `~/.trove/` + 填真凭证 + 端到端 smoke。**meta-validation**：有了 v0.2 Web UI scaffold + 一个高质量 module（openrouter）作 reference 之后，"加一个 module" 的边际成本几乎完全是 "research 这个 API 的 gotchas + 写 skill"，Trove 自己的机制（frontmatter / credentials.json / install flow）几乎没产生摩擦。**衍生**：批量生产 module 的真瓶颈是 skill 质量（gotchas 是否真的从 dogfood 沉淀而来 vs 从训练数据生成），不是 Trove 的格式开销。9 个里 6 个用真实 API 调用完整端到端验证（serper / tavily / brave / qwen / GA4 / GSC），3 个只验证了凭证抽取 + 不烧 quota 的 auth 校验（kling 用 401 vs 400 判断 JWT 签名有效、stripe 用 GET /customers 验证 rk_live_ 有读权限、Ads 跳过仅靠 skill 派生自维护者已生产的下游项目代码）。
 - **SPEC §1 文件型凭证压力测试 + 临时方案**：google-analytics / google-search-console 共用同一份 Google Cloud service-account JSON（~2.5KB）。**问题**：SPEC §1 严格规定模块目录只能有 `module.md` + `credentials.json` 两个字面量文件，但 service account 凭证天生是文件形态。**临时方案 (v0.1.x)**：把 JSON 用 `JSON.stringify` 内联为 credentials.json 里的 multiline 字段（jq -c 一键产出），skill body 教 AI 怎么 `JSON.parse` 出来再传给 SDK。代价是同份 2.5KB JSON 在两个模块各存一份（轮换时改两处）。**SPEC v0.2 待回答**：是否引入 `type: file`（值是路径）或者跨模块凭证引用（如 `credentials_ref: google-cloud-auth` 表示从另一模块继承）。**先记一笔**，等第 N 次跨模块共享凭证时再决定 SPEC 演化路径。
 - **YAML frontmatter 隐藏陷阱：以 `"quoted phrase"` 开头的 list 项后接 `— continuation` 会 parse fail**：写 tavily / brave 的 `applies_to:` 时各自被 `trove validate` 抓到一次。YAML 1.2 规范里，引号闭合后这一行剩余文本必须是空白 / 注释 / EOL，不能再续接 scalar。**修复**：所有 list item 要么完全不引号，要么整行包在引号里；不要"前缀引号 + 后续无引号续接"。**衍生原则**：trove-validate 必须在 module 写入 `~/.trove/` 之前作为强制 gate ——这次连续 2 次救援证明它的存在价值。**写进 §2.1 frontmatter 章节**：list scalar 续接规则的反例。
 - **三大搜索 API 的 auth header 都不一样，且都不是 OpenAI 派**：serper = `X-API-KEY`，tavily = `Authorization: Bearer`，brave = `X-Subscription-Token`。**这是 #1 的 401 来源**——任何在 LLM 调用代码上"复制粘贴改改"的人都会踩。三个 module 的 Critical Constraints 各自把这条作为第一条提醒。**意义**：印证 SPEC §2.1 "skill 必须以 gotchas/反例开头" 的约定——同一类别的服务（都是搜索 API）有看起来微妙、实际致命的差异，必须前置消化。
-- **Trove 首跑：两个状态显示 bug 被实地用户立刻抓出来**：scaffold 用 Bun + Hono + HTMX + Tailwind CDN，~700 LOC。在已装 6 个 module 的 `~/.trove/` 上跑起来当场暴露两个 UI bug：① **「全 default」module 被误判为 `credentials missing`**——github-a404coder / github-robozephyr 所有字段都有 `default:`，credentials.json 是 `{}`，按 SPEC §2.2 是 valid 状态，UI 却显示红色 missing。**根因**：状态计算函数提前 `if (present.length === 0) return "missing"`，没区分「required 集合为空」和「required 都没填」。**修复**：先 `if (requiredKeys.length === 0) return "complete"`，再做填值对比。② **HTMX 局部 swap 漏掉 header badge**：填完凭证 Save 后表单原地 swap ✓，但页面 header 的红色 `credentials missing` 不变——PATCH 只返回 form 片段，badge 在 swap 范围外，用户的直觉反应是「没保存」。**修复**：HTMX OOB（out-of-band）—— 同一响应附带 `<span id="cred-badge" hx-swap-oob="true">` 片段，HTMX 自动找 id 替换。一处保存、多处同步、零额外 round-trip。**衍生原则**：**HTMX 局部 swap 必须列举所有依赖该状态的 UI 节点**，不在主 target 内的用 OOB 覆盖——这是 HTMX-heavy SSR 架构（v0.2 选型）的最高频陷阱，必须当一等公民习惯而不是 bug 修。**意义**：UI 上线 30 分钟内被真实用户抓到两个状态显示 bug，**正好证明 SPEC §10 的「dogfood-driven 是 SPEC 修订唯一可信来源」原则**——任何 spec/design doc 都预测不到 `present.length === 0` 和 `requiredKeys.length === 0` 的语义重叠盲区。
+- **Trove 首跑：两个状态显示 bug 被实地用户立刻抓出来**：scaffold 用 Bun + Hono + HTMX + Tailwind CDN，~700 LOC。在已装 6 个 module 的 `~/.trove/` 上跑起来当场暴露两个 UI bug：① **「全 default」module 被误判为 `credentials missing`**——两个 github-account 变体（如 `github-personal` / `github-work`）所有字段都有 `default:`，credentials.json 是 `{}`，按 SPEC §2.2 是 valid 状态，UI 却显示红色 missing。**根因**：状态计算函数提前 `if (present.length === 0) return "missing"`，没区分「required 集合为空」和「required 都没填」。**修复**：先 `if (requiredKeys.length === 0) return "complete"`，再做填值对比。② **HTMX 局部 swap 漏掉 header badge**：填完凭证 Save 后表单原地 swap ✓，但页面 header 的红色 `credentials missing` 不变——PATCH 只返回 form 片段，badge 在 swap 范围外，用户的直觉反应是「没保存」。**修复**：HTMX OOB（out-of-band）—— 同一响应附带 `<span id="cred-badge" hx-swap-oob="true">` 片段，HTMX 自动找 id 替换。一处保存、多处同步、零额外 round-trip。**衍生原则**：**HTMX 局部 swap 必须列举所有依赖该状态的 UI 节点**，不在主 target 内的用 OOB 覆盖——这是 HTMX-heavy SSR 架构（v0.2 选型）的最高频陷阱，必须当一等公民习惯而不是 bug 修。**意义**：UI 上线 30 分钟内被真实用户抓到两个状态显示 bug，**正好证明 SPEC §10 的「dogfood-driven 是 SPEC 修订唯一可信来源」原则**——任何 spec/design doc 都预测不到 `present.length === 0` 和 `requiredKeys.length === 0` 的语义重叠盲区。
 - **首次「纯 Web UI → 真实 API 调用」端到端跑通（openrouter）**：用户从未编辑过 credentials.json，纯通过 Web UI 表单填 `OPENROUTER_API_KEY` → UI 写盘 `~/.trove/openrouter/credentials.json`（600 权限）→ 按 module skill 推荐方式 `jq -r .OPENROUTER_API_KEY` 抽 key → POST `https://openrouter.ai/api/v1/chat/completions` → `claude-haiku-4-5` 返回 `trove dogfood smoke test ok`，费用 $0.000074。**全程零文件系统操作、零命令行操作、零凭证字面值露出**。配合首次走通的 Install flow（Examples gallery → Install → 拷 `examples/openrouter/module.md` 到 `~/.trove/openrouter/` → 跳转详情页 → 填表 → API 工作），验证了 v0.2 设计文档「四 screen 闭环：Modules grid / Module 详情 / Credentials 表单 / Examples gallery」是完整产品流。**意义**：这是设计文档「Web UI 是凭证录入的一等公民、`$EDITOR` 是 fallback」核心假设的**最强实战证据**——一个曾经的「手工 mkdir + vim credentials.json」流程被压缩成「点 Install、填表、Save」三步。一旦这条路顺滑到可推荐给非开发者，Trove 就不再只是 AI agent 的工具，而是任何「想管 API key 但不想碰文件系统」的人的资源中心。**衍生开放问题**：跨设备同步策略（用户多台机器各自填一遍？还是同步 `~/.trove/`？）——v0.3 之前先继续靠 git remote 手动同步，等真有第二台机器需求再说。
 
 ### 2026-05-11

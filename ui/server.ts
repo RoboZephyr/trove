@@ -5,6 +5,7 @@
 
 import { Hono } from "hono";
 import { html } from "hono/html";
+import { serve } from "@hono/node-server";
 import {
   getInstalledModule,
   getLibraryItem,
@@ -24,10 +25,10 @@ import {
   notFoundPage,
 } from "./views";
 
-const PORT = Number(process.env.TROVE_UI_PORT ?? 7821);
 const QUICK_START = ["minimax", "cloudflare", "anthropic"];
 
 const app = new Hono();
+let PORT = 7821;
 
 /**
  * Same-origin guard. The UI binds to 127.0.0.1 so external network traffic
@@ -80,17 +81,24 @@ app.get("/library/:name", async (c) => {
 app.patch("/api/m/:name/cred", async (c) => {
   const mod = await getInstalledModule(c.req.param("name"));
   if (!mod) return c.text("module not found", 404);
-  const form = await c.req.parseBody();
-  const submitted: Record<string, string> = {};
-  for (const [k, v] of Object.entries(form)) {
-    if (typeof v === "string") submitted[k] = v;
+  const form = await c.req.parseBody({ all: true });
+  const values: Record<string, string> = {};
+  const deletes: string[] = [];
+  for (const [k, raw] of Object.entries(form)) {
+    if (k === "__delete") {
+      const arr = Array.isArray(raw) ? raw : [raw];
+      for (const v of arr) if (typeof v === "string" && v.length > 0) deletes.push(v);
+      continue;
+    }
+    const v = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof v === "string") values[k] = v;
   }
-  await writeCredentials(mod, submitted);
+  await writeCredentials(mod, { values, deletes });
   const fresh = (await getInstalledModule(mod.name))!;
-  const values = await readCredentialsMasked(fresh);
+  const masked = await readCredentialsMasked(fresh);
   // HTMX swaps the form in place; the OOB badge update refreshes the header
   // badge at the same time.
-  return c.html(html`${credentialsForm(fresh, values)}${credentialsBadgeOOB(fresh)}`);
+  return c.html(html`${credentialsForm(fresh, masked)}${credentialsBadgeOOB(fresh)}`);
 });
 
 app.post("/api/install", async (c) => {
@@ -103,10 +111,8 @@ app.post("/api/install", async (c) => {
 
 app.notFound((c) => c.html(notFoundPage("Page not found"), 404));
 
-export default {
-  port: PORT,
-  hostname: "127.0.0.1",
-  fetch: app.fetch,
-};
-
-console.log(`Trove UI → http://127.0.0.1:${PORT}`);
+export function startServer(opts: { port?: number } = {}): void {
+  PORT = opts.port ?? Number(process.env.TROVE_UI_PORT ?? 7821);
+  serve({ fetch: app.fetch, port: PORT, hostname: "127.0.0.1" });
+  console.log(`Trove UI → http://127.0.0.1:${PORT}`);
+}

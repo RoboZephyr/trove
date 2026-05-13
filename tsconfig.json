@@ -4,12 +4,11 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
-    "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx",
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "types": ["bun-types"]
+    "types": ["node"]
   },
-  "include": ["bin/**/*.ts", "ui/**/*.ts", "ui/**/*.tsx"]
+  "include": ["bin/**/*.ts", "ui/**/*.ts"]
 }

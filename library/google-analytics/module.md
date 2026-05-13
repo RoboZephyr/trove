@@ -18,12 +18,22 @@ credentials:
     required: true
     help: "Numeric GA4 property id (e.g. 287654321). Find at https://analytics.google.com → Admin → Property settings."
   GOOGLE_SERVICE_ACCOUNT_JSON:
-    type: multiline
+    type: file
+    file_format: json
+    file_mode: "0600"
     required: true
-    help: "Full JSON of a GCP service-account key with Viewer role on the GA4 property. Paste the entire {type:'service_account',...} blob. Get one from console.cloud.google.com → IAM → Service Accounts → Keys → Add Key (JSON). Then add the service-account email as Viewer in GA4 Admin → Account/Property → User Management."
+    help: "GCP service-account key with Viewer role on the GA4 property. Get one from console.cloud.google.com → IAM → Service Accounts → Keys → Add Key (JSON). Then add the service-account email as Viewer in GA4 Admin → Account/Property → User Management. Paste the whole {type:'service_account',...} blob into the form; trove stores it as a real file."
+
+mcp:
+  type: stdio
+  command: pipx
+  args: ["run", "google-analytics-mcp"]
+  env:
+    GOOGLE_APPLICATION_CREDENTIALS: ${credential.GOOGLE_SERVICE_ACCOUNT_JSON}
+    GA4_PROPERTY_ID: ${credential.GA4_PROPERTY_ID}
 
 trove_spec: "0.1"
-last_verified: "2026-05-12 · API runReport on real production GA4 property (28-day window, thousands of users, full funnel custom-event queryable). MCP path uses same SA — `pipx run analytics-mcp` with GOOGLE_APPLICATION_CREDENTIALS pointing to the JSON file"
+last_verified: "2026-05-12 · API runReport on real production GA4 property (28-day window, thousands of users, full funnel custom-event queryable). MCP path uses same SA — `pipx run analytics-mcp` with GOOGLE_APPLICATION_CREDENTIALS pointing to the JSON file. 2026-05-13: upgraded credentials from `type: multiline` to `type: file` per SPEC §2.3 — `${credential.GOOGLE_SERVICE_ACCOUNT_JSON}` now resolves to the file path automatically, so the MCP env block above is the canonical wiring (no more manual tempfile materialization)"
 ---
 
 # GA4 Data API Usage Guide
@@ -36,19 +46,23 @@ last_verified: "2026-05-12 · API runReport on real production GA4 property (28-
 4. **Dimension and metric names are case-sensitive and NOT what the UI shows** — UI says "Page title", API wants `pageTitle`. UI says "Views", API wants `screenPageViews`. Check the schema reference, don't guess
 5. **Date ranges are inclusive** and accept relative strings: `'today'`, `'yesterday'`, `'NdaysAgo'`. UTC by property's reporting timezone, not yours
 6. **Top-N results require a `limit`** — default is 10,000 rows max, but realistic queries should cap explicitly to control quota cost
-7. **Service-account JSON is stored as a stringified blob in credentials.json** — JSON.parse it at runtime before passing to the SDK. See setup snippet below
+7. **Service account is stored as a real file** at `~/.trove/google-analytics/files/GOOGLE_SERVICE_ACCOUNT_JSON.json` (`type: file` per SPEC §2.3). Anywhere you'd see `GOOGLE_APPLICATION_CREDENTIALS` in Google SDK docs, point it at that path — `${credential.GOOGLE_SERVICE_ACCOUNT_JSON}` resolves to the absolute path automatically in `mcp:` blocks
 
 ---
 
 ## SDK setup
 
+The Google SDK auto-discovers credentials from `GOOGLE_APPLICATION_CREDENTIALS` (a file path). Just set the env var; the SDK reads the file:
+
 ```typescript
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 
-// credentials.json field is a JSON-STRING; parse before use
-const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON!);
+// GOOGLE_APPLICATION_CREDENTIALS must point to the SA JSON FILE
+// (not the JSON contents — that's the legacy pre-§2.3 pattern)
+process.env.GOOGLE_APPLICATION_CREDENTIALS =
+  `${process.env.HOME}/.trove/google-analytics/files/GOOGLE_SERVICE_ACCOUNT_JSON.json`;
 
-const client = new BetaAnalyticsDataClient({ credentials });
+const client = new BetaAnalyticsDataClient();   // auto-loads creds from the file path
 const property = `properties/${process.env.GA4_PROPERTY_ID}`;
 ```
 
@@ -56,8 +70,10 @@ Reading from `~/.trove/` in a shell pipeline:
 
 ```bash
 export GA4_PROPERTY_ID=$(jq -r .GA4_PROPERTY_ID ~/.trove/google-analytics/credentials.json)
-export GOOGLE_SERVICE_ACCOUNT_JSON=$(jq -r .GOOGLE_SERVICE_ACCOUNT_JSON ~/.trove/google-analytics/credentials.json)
+export GOOGLE_APPLICATION_CREDENTIALS=~/.trove/google-analytics/files/GOOGLE_SERVICE_ACCOUNT_JSON.json
 ```
+
+**Legacy compat**: if you have older code that does `JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON)`, swap to: `JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8'))`.
 
 ---
 
