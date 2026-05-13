@@ -1,24 +1,32 @@
 # Trove
 
-> The local-first, AI-native resource manager for AI coding agents.
+> Battle-tested service playbooks + a unified credentials & MCP home that any AI coding agent (Claude Code · Cursor · Codex · Aider) reuses across every project on your machine.
 
 [简体中文](./README.zh-CN.md)
 
-Trove is a directory format and a tiny tool around it. Per service, you keep the **hard-won usage knowledge** (gotchas, billing pitfalls, error-code maps — the stuff that gets a senior engineer paged at 2am), plus the API credentials and MCP server pointers, in one place — `~/.trove/` — that any AI coding agent (Claude Code, Cursor, Codex, Aider) reuses across all your projects.
+Trove is a directory format and a tiny tool around it. For each third-party service you use, one `~/.trove/<service>/` folder holds three layers the AI needs but no single existing tool unifies:
 
-**No inject step. No init step. No cross-agent adapters.** AI is the runtime: it reads modules, fetches credentials on demand, and even installs MCP servers when needed.
+1. **The playbook** (the moat) — gotchas, billing pitfalls, error-code tables, real code snippets, written from production dogfood. Stripe amounts in cents. Supabase RLS opt-in default. GA4 service-account-as-user-not-IAM. The stuff that gets a senior engineer paged at 2am — pre-loaded so the AI doesn't step on it
+2. **API credentials** — keys / tokens / refresh tokens, gitignored at file-mode 600
+3. **MCP server pointers** — `mcp:` block per module, so the AI configures the agent it's running in
 
-## Why
+**No inject step. No init step. No cross-agent adapters.** AI is the runtime: it reads modules, fetches credentials on demand, and even installs MCP servers when needed. Switch projects: same trove. Switch agents (Claude Code → Cursor): same trove.
 
-The marketing pitch for "AI configures your services" is easy. The real bottleneck is different: every service has a **landmine field** of gotchas that the AI will step on unless someone — a human who actually ran it in production — wrote them down. Stripe amounts in cents, Supabase RLS opt-in default, Google Analytics service-account-as-user-not-IAM, Resend's two independent sandbox gates: an AI agent gets all of these wrong if you don't pre-load the warning.
+## Why this matters more in the MCP era
 
-**Trove's primary value is that landmine map**, per service, written from dogfood use. Around that, it also consolidates the bookkeeping:
+Before MCP, an AI agent needed natural-language docs to call your services. Now it can call MCP servers directly — but every agent has its own mcp.json: `~/.claude.json`, `~/.cursor/mcp.json`, `~/.codex/...`. Adding one service to four agents means editing four files. And MCP alone is not enough — most MCP servers cover the happy path only, leaving the AI to rediscover the production landmines that the playbook layer captures.
 
-- **Usage docs** (the moat) — gotchas, real code snippets, billing pitfalls, error tables — sourced from your actual production runs, not LLM training data
-- **API credentials** → instead of `.env` files in every project, or 1Password, or somewhere else
-- **MCP server pointers** → instead of `~/.claude.json`, `~/.cursor/mcp.json`, `~/.codex/...`
+Trove's `module.md` carries all three layers (playbook + credentials + MCP config) in one file. The AI loads the module, reads the credentials, configures the agent's MCP, and consults the playbook when the MCP server doesn't cover the case (most of them don't, yet). **One file, three layers, every agent.**
 
-Switching projects means re-configuring. Switching agents means re-writing. Adding a new service means editing four places. **Trove consolidates this into one place that all agents read from**, with skill knowledge as the part nothing else replaces.
+## How it doesn't try to be other tools
+
+| Trove is NOT replacing | Because |
+|---|---|
+| `.env` + `direnv` | Env files have no skill knowledge, no MCP config, and re-fragment per-project. Trove keeps creds but adds the two layers env can't carry |
+| `~/.claude/skills/` (and equivalents) | Those are agent-specific. Trove modules are referenced from `CLAUDE.md` / `AGENTS.md` / `.cursorrules` by absolute path, so the same module serves every agent that supports `@-reference` |
+| 1Password CLI / `op run` | Credentials only — no playbook, no MCP wiring. Use 1Password as the source-of-truth vault and pull values into trove if you want; the two compose |
+| Writing your own skill files per project | Every project re-pays the same authoring cost; trove de-duplicates that across N projects, and the `last_verified` field makes "is this knowledge still correct?" auditable |
+| A SaaS / cloud sync | Local-first by design. Sync via git remote / iCloud Drive / rsync — whichever you already use |
 
 ## How it works
 

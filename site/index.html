@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Trove — local-first resource manager for AI coding agents</title>
-<meta name="description" content="One ~/.trove/ directory holds API credentials, skill docs, and MCP configs for every service. Any AI agent (Claude Code, Cursor, Codex) reuses them across all your projects. No inject step. AI is the runtime.">
+<title>Trove — battle-tested service playbooks + unified MCP / creds for AI coding agents</title>
+<meta name="description" content="One ~/.trove/ directory holds the playbook (gotchas + production lessons), API credentials, and MCP server pointers for every service you use. Any AI agent (Claude Code, Cursor, Codex, Aider) reuses them across all your projects. No inject step. AI is the runtime.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -49,7 +49,27 @@
   .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem 1.25rem; margin: 1rem 0; }
   .module-grid .cat { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-3); margin-top: 0.75rem; }
   .module-grid .cat:first-child { margin-top: 0; }
-  .module-grid .name { font-size: 14px; color: var(--ink); font-family: 'Geist Mono', ui-monospace, monospace; }
+  .module-grid .name { font-size: 14px; color: var(--ink); font-family: 'Geist Mono', ui-monospace, monospace; display: inline-flex; align-items: center; gap: 0.45em; }
+
+  .vdot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; flex: 0 0 7px; }
+  .vdot-prod { background: #16a34a; }
+  .vdot-ver  { background: #84cc16; }
+  .vdot-par  { background: #eab308; }
+  .vdot-pend { background: var(--ink-4); }
+  @media (prefers-color-scheme: dark) {
+    .vdot-prod { background: #22c55e; }
+    .vdot-ver  { background: #a3e635; }
+    .vdot-par  { background: #facc15; }
+  }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: 11.5px; color: var(--ink-3); font-family: 'Geist Mono', ui-monospace, monospace; margin: 0.4rem 0 1rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 0.4em; }
+
+  .vs-table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 1rem 0 1.5rem; }
+  .vs-table th, .vs-table td { text-align: left; vertical-align: top; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--line); }
+  .vs-table th { font-weight: 500; color: var(--ink-3); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .vs-table td:first-child { white-space: nowrap; color: var(--ink); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; width: 1%; }
+  .vs-table td { color: var(--ink-2); }
 
   .stat-row { display: flex; flex-wrap: wrap; gap: 1.25rem 2rem; padding: 0.85rem 0; margin: 1rem 0 1.5rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink-3); font-family: 'Geist Mono', ui-monospace, monospace; }
   .stat-row strong { color: var(--ink); font-weight: 600; }
@@ -66,7 +86,7 @@
 </pre>
 
 <h1>Trove</h1>
-<p class="lede">A local-first resource manager so AI coding agents can share API credentials and skill docs across every project on your machine.</p>
+<p class="lede">Battle-tested service playbooks + a unified credentials &amp; MCP home that any AI coding agent (Claude Code · Cursor · Codex · Aider) reuses across every project on your machine.</p>
 
 <div class="stat-row">
   <span><strong>17</strong> modules in library</span>
@@ -75,7 +95,7 @@
   <span><strong>v0.2</strong> · npm shipped</span>
 </div>
 
-<p>One <code>~/.trove/</code> directory holds every service you use — MiniMax keys, Cloudflare tokens, Stripe rk_live, the lot. Any AI coding agent (Claude Code, Cursor, Codex, Aider) reuses the same modules across all your projects.</p>
+<p>For each third-party service you use, one <code>~/.trove/&lt;service&gt;/</code> folder holds three layers the AI needs but no single existing tool unifies — the <strong>playbook</strong> (gotchas, billing pitfalls, error tables sourced from production dogfood), the <strong>credentials</strong> (gitignored, file-mode 600), and the <strong>MCP server pointer</strong> for that service. The AI loads all three on session start.</p>
 
 <p><strong>No inject step. No cross-agent adapters. AI is the runtime.</strong></p>
 
@@ -101,6 +121,27 @@
 
 <p>The AI auto-loads each module, fetches credentials on demand (via <code>jq</code>, no env pre-export), and configures MCP servers when needed. <strong>No tooling required to start — the directory convention IS the runtime.</strong></p>
 
+<h2>Why this matters more in the MCP era</h2>
+
+<p>Before MCP, AI agents needed natural-language docs to call your services. Now they can call MCP servers directly — but every agent has its own mcp.json: <code>~/.claude.json</code>, <code>~/.cursor/mcp.json</code>, <code>~/.codex/...</code>. Adding one service to four agents means editing four files.</p>
+
+<p>And MCP alone is not enough. Most MCP servers ship the happy path; the production landmines — Stripe amounts in cents, Supabase RLS opt-in default, GA4 service-account-as-user — still live in the docs and the maintainer's memory. The AI will rediscover them at 2am unless the playbook is loaded.</p>
+
+<p>Trove's <code>module.md</code> carries all three layers in one file. The AI loads the module, reads the credentials, configures the agent's MCP, and consults the playbook when the MCP server falls short. <strong>One file, three layers, every agent.</strong></p>
+
+<h2>How is this different from…</h2>
+
+<table class="vs-table">
+  <thead><tr><th>Tool</th><th>Why Trove isn't replacing it</th></tr></thead>
+  <tbody>
+    <tr><td><code>.env</code> + direnv</td><td>Env files have no skill knowledge, no MCP config, and re-fragment per-project. Trove keeps creds but adds the two layers env can't carry.</td></tr>
+    <tr><td><code>~/.claude/skills/</code></td><td>Agent-specific. Trove modules are referenced from <code>CLAUDE.md</code> / <code>AGENTS.md</code> / <code>.cursorrules</code> by absolute path, so the same module serves every agent that supports <code>@</code>-reference.</td></tr>
+    <tr><td>1Password CLI / <code>op run</code></td><td>Credentials only — no playbook, no MCP wiring. Use 1Password as the source-of-truth vault and pull values into trove if you want; the two compose.</td></tr>
+    <tr><td>Per-project skill files</td><td>Every project re-pays the authoring cost; trove de-duplicates across N projects, and the <code>last_verified</code> field makes "is this knowledge still correct?" auditable.</td></tr>
+    <tr><td>A SaaS / cloud sync</td><td>Local-first by design. Sync via git remote / iCloud Drive / rsync — whichever you already use.</td></tr>
+  </tbody>
+</table>
+
 <h2>Web UI (v0.2)</h2>
 
 <p>Run <code>trove ui</code> and a localhost dashboard at <code>http://127.0.0.1:7821</code> lets you browse installed modules, fill credentials through a form, and install new ones from the bundled library — all without ever opening <code>credentials.json</code> in <code>$EDITOR</code>.</p>
@@ -120,37 +161,46 @@ trove ui
 
 <h2>What's in the library</h2>
 
+<p>Every module carries a <code>last_verified</code> field — what was actually tested, by whom, when. Dot color reflects current state. We'd rather ship 17 honest modules than 50 LLM-hallucinated ones.</p>
+
+<div class="legend">
+  <span><span class="vdot vdot-prod"></span>production · daily-use</span>
+  <span><span class="vdot vdot-ver"></span>verified · real call succeeded</span>
+  <span><span class="vdot vdot-par"></span>partial · known gap</span>
+  <span><span class="vdot vdot-pend"></span>pending</span>
+</div>
+
 <div class="module-grid">
   <div class="cat">llm-provider</div>
-  <span class="name">openrouter</span>
-  <span class="name">qwen</span>
-  <span class="name">minimax</span>
+  <span class="name"><span class="vdot vdot-ver"></span>openrouter</span>
+  <span class="name"><span class="vdot vdot-ver"></span>qwen</span>
+  <span class="name"><span class="vdot vdot-ver"></span>minimax</span>
 
   <div class="cat">search-api</div>
-  <span class="name">serper</span>
-  <span class="name">tavily</span>
-  <span class="name">brave</span>
+  <span class="name"><span class="vdot vdot-ver"></span>serper</span>
+  <span class="name"><span class="vdot vdot-ver"></span>tavily</span>
+  <span class="name"><span class="vdot vdot-ver"></span>brave</span>
 
   <div class="cat">media-generation</div>
-  <span class="name">kling</span>
-  <span class="name">fal-ai</span>
+  <span class="name"><span class="vdot vdot-par"></span>kling</span>
+  <span class="name"><span class="vdot vdot-ver"></span>fal-ai</span>
 
   <div class="cat">payments</div>
-  <span class="name">stripe</span>
+  <span class="name"><span class="vdot vdot-ver"></span>stripe</span>
 
   <div class="cat">analytics</div>
-  <span class="name">google-analytics</span>
-  <span class="name">google-search-console</span>
+  <span class="name"><span class="vdot vdot-ver"></span>google-analytics</span>
+  <span class="name"><span class="vdot vdot-ver"></span>google-search-console</span>
 
   <div class="cat">infra · email · db</div>
-  <span class="name">cloudflare</span>
-  <span class="name">resend</span>
-  <span class="name">supabase</span>
+  <span class="name"><span class="vdot vdot-prod"></span>cloudflare</span>
+  <span class="name"><span class="vdot vdot-prod"></span>resend</span>
+  <span class="name"><span class="vdot vdot-par"></span>supabase</span>
 
   <div class="cat">collab · dev-tool</div>
-  <span class="name">lark</span>
-  <span class="name">github-account</span>
-  <span class="name">npm</span>
+  <span class="name"><span class="vdot vdot-ver"></span>lark</span>
+  <span class="name"><span class="vdot vdot-prod"></span>github-account</span>
+  <span class="name"><span class="vdot vdot-prod"></span>npm</span>
 </div>
 
 <p>Each module ships with a <em>gotchas-first</em> skill body — auth header quirks, billing pitfalls, error-code tables — so the AI doesn't have to rediscover the same trap that bit the last engineer.</p>
@@ -167,9 +217,9 @@ trove ui
 
 <h2>Status</h2>
 
-<p><strong>v0.2.</strong> Format is stable. Web UI shipped with four screens: Modules grid · Module detail · Credentials form · Library. Live dogfood ongoing — see <a href="https://github.com/RoboZephyr/trove/blob/main/SPEC.md#10-convention-adherence-log">SPEC §10</a> for the lessons-learned log driving spec evolution.</p>
+<p><strong>v0.2.</strong> Format is stable. Web UI shipped. Available on npm as <code>@robozephyr/trove</code> — <code>npm install -g @robozephyr/trove</code>. MCP-shape modules are live (supabase, stripe, npm, google-analytics). Live dogfood ongoing — see <a href="https://github.com/RoboZephyr/trove/blob/main/SPEC.md#10-convention-adherence-log">SPEC §10</a> for the lessons-learned log driving spec evolution.</p>
 
-<p>Next: MCP-shape module template (supabase-mcp as first instance), more <a href="https://github.com/RoboZephyr/trove/tree/main/library">library</a> modules, public OSS launch.</p>
+<p>Next: file-type credentials (SA JSON / SSH key / x509 cert) unified handling, more library modules, public OSS launch.</p>
 
 <footer>
   <a href="https://github.com/RoboZephyr/trove">github.com/RoboZephyr/trove</a> · MIT licensed · Built by <a href="https://github.com/RoboZephyr">@RoboZephyr</a>
