@@ -13,7 +13,7 @@ applies_to:
   - deploying or invoking Edge Functions
   - any task using `supabase` CLI
 trove_spec: "0.1"
-last_verified: "2026-05-12 · hosted MCP registered via `claude mcp add --transport http supabase https://mcp.supabase.com/mcp --scope user`; OAuth flow reported successful by maintainer (tool list not independently inspected this session). ⚠ Registered WITHOUT `?project_ref=...&read_only=true` — current scope grants RW across the entire OAuth'd Supabase org, violating this module's own recommended safety profile. Fix pending. Edge Functions production-active in maintainer downstream project (`<project-ref>.supabase.co/functions/v1`, 401 without anon key confirms). PostgREST/auth/storage/realtime API path not smoke-tested this session"
+last_verified: "production · 2026-05-13 — module's recommended safe profile (`?project_ref=<ref>&read_only=true`) applied to hosted MCP and end-to-end 3-point verified from a real downstream project: (1) `count(*)` on a live transactional table returned the expected row count — SELECT works; (2) `current_user` resolves to `supabase_read_only_user`, a Supabase-managed Postgres role with NO write grants — writes can't succeed at the role-identity layer regardless of session flags (stronger evidence than a wire-rejection since it's identity, not session config); (3) MCP tool surface contains zero cross-project tools (no `list_projects`, no `list_organizations`), and `list_tables(public)` returned only the bound project's tables — project scope enforced at the tool-discovery layer. A concurrent production cross-table query surfaced a real-world stripe-webhook persistence bug in the maintainer's downstream usage (captured into the stripe module's Critical Constraints), confirming the read path is hot. Edge Functions production-active separately. PostgREST / auth / storage / realtime API paths not independently smoke-tested this session — claim is scoped to MCP + Edge Functions."
 
 credentials:
   SUPABASE_URL:
@@ -238,6 +238,8 @@ Two important query params:
 - **`read_only=true`** — runs all queries as a read-only Postgres role. **Strongly recommended default**: AI agents are prone to "delete everything" missteps. Drop this only for explicit one-shot write tasks, in test mode, with `--project-ref` scoped to a non-prod project
 
 **Auth**: OAuth flow on first `tools/list` call. The agent (Claude Code, Cursor) opens a browser, you approve, the agent stores the token. **No PAT / no service_role in URL** — Supabase deliberately avoided that pattern.
+
+**⚠ Changing URL scope invalidates the OAuth session** — if you originally registered without `?read_only=true&project_ref=...` and now re-register with the safer scoped URL, the cached OAuth token doesn't match the new scope and the connection reports `Needs authentication`. **Re-auth via `/mcp` slash command in Claude Code** (select supabase → browser → approve scoped token). Same applies any time you change `project_ref` / `read_only` / any other param — the new URL is treated as a new connection, not an update to the existing one. Doesn't happen for any other module's MCP because scope-in-URL is a Supabase-specific shape.
 
 **Don't connect to production**: official guidance. Use against a staging / branch project. The combination of `read_only=true` + non-prod `project_ref` is the safe profile.
 

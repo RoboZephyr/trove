@@ -197,6 +197,14 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), (req, re
 
 **Critical**: use `req.raw` body, NOT a parsed body. JSON.stringify-ing the body before signature check will fail verification because the byte sequence differs (whitespace, key order).
 
+**Persistence-side trap — webhook handlers writing NULL amounts**: a production-grade bug pattern surfaced in real dogfood — a non-trivial fraction of order rows persisted with NULL `amount`/`currency`. Three common causes seen in the wild:
+
+1. **Handler fires on the wrong event type** — the row was persisted from `payment_intent.created` (no `amount_total` yet) instead of `checkout.session.completed` (which carries the final amount). Always gate persistence on the **terminal** event for your flow: `checkout.session.completed` for Checkout/Payment Links, `payment_intent.succeeded` for direct PI flow, `invoice.payment_succeeded` for subscriptions
+2. **Reading the wrong field on `checkout.session.completed`** — the amount lives at `event.data.object.amount_total` (cents). NOT `amount`, NOT `total`. Reading a non-existent field gives `undefined`, which DBs coerce to NULL on insert
+3. **A/B-tested currency / price split** — webhook code branches on `event.data.object.currency` to pick a column, an experiment introduces a new currency code, the branch falls through and writes NULL
+
+**Defensive write**: refuse to insert when `amount_total == null && event.type === 'checkout.session.completed'` — log + alert instead. Then backfill via `stripe.checkout.sessions.retrieve(session.id)` if you need the data later.
+
 ---
 
 ## Common patterns

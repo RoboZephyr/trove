@@ -82,7 +82,7 @@ npm whoami
 # Org scopes — list every org you belong to:
 npm org ls <orgname>        # confirms you're a member of <orgname>
 # Or visually: https://www.npmjs.com/settings/<username>/orgs
-# → @robozephyr, @lovebridge, @company-xyz
+# → @your-username, @your-personal-org, @your-company-org
 
 # 4. (Optional) Automation token for unattended publish
 # https://www.npmjs.com/settings/<username>/tokens → Generate New Token → Automation

@@ -21,9 +21,9 @@ A brief description of the project. Architecture notes, conventions, terminology
 
 ### `trove.md`
 ```markdown
-@/Users/zephyr/.trove/github-robozephyr/module.md
-@/Users/zephyr/.trove/minimax/module.md
-@/Users/zephyr/.trove/cloudflare/module.md
+@/Users/you/.trove/github-personal/module.md
+@/Users/you/.trove/minimax/module.md
+@/Users/you/.trove/cloudflare/module.md
 ```
 
 That's it. No headers, no narrative—just `@-references`. Each module's `module.md` frontmatter declares `applies_to`, so the AI knows when to use what.
