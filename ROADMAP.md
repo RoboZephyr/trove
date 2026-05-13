@@ -34,7 +34,7 @@ Stack: Bun + Hono + HTMX + Tailwind CDN, server-side rendered.
 - [x] Credentials inline edit form — masked password fields with eye-icon reveal, file-type fields with present/replace/delete widget, HTMX PATCH preserves unchanged fields. Implemented per SPEC §2.3
 - [x] Library install three-step flow: `installFromLibrary` copies module.md → POST `/api/install` redirects to `/m/<name>` → user fills form. Also exposed as `trove install <name>` CLI
 - [x] Quick Start cards on empty state — `homePage` shows `QUICK_START = ["minimax", "cloudflare", "anthropic"]` when `~/.trove/` is empty
-- [x] **npm distribution** — `@robozephyr/trove` scoped package; `trove validate` / `trove ui` / `trove install` / `trove migrate` subcommands via single `bin/cli.ts`; esbuild bundle to `dist/cli.js`; Node 22+. Bare `trove` name on npm is squatted by a 2014 dead package — scoped name chosen. Latest published version: **0.2.2**
+- [x] **npm distribution** — `@robozephyr/trove` scoped package; `trove validate` / `trove ui` / `trove install` / `trove migrate` subcommands via single `bin/cli.ts`; esbuild bundle to `dist/cli.js`; Node 22+. Bare `trove` name on npm is squatted by a 2014 dead package — scoped name chosen. Latest published version: **0.2.3**
 - [ ] Homebrew tap (`brew install robozephyr/trove/trove`) — v1.0 item, needs binary build (`bun build --compile` or pkg-style)
 
 ## v0.2.x — MCP work面 (current focus)
