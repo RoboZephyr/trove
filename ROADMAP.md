@@ -46,8 +46,9 @@ Stack: Bun + Hono + HTMX + Tailwind CDN, server-side rendered.
 - [x] **#16 — SPEC §2.1 正式记录 `mcp:` 两种 sub-schema**(stdio + http)— SPEC §2.1 新增 `mcp:` 字段完整 sub-schema、字段语义表、3 条反模式;`${credential.X}` substitution 扩到 `url:`
 - [x] **#23 — stripe 模块加 `mcp:` block + Payment Links + MCP skill 章节** — 加 `type: http url: https://mcp.stripe.com`、Payment Links 整节(`buy.stripe.com` CTA 形态)、Stripe MCP usage 章节
 - [x] **#25 — supabase MCP-first 重写** + Edge Functions skill 章节 — `mcp:` 从过时 stdio (含 secret-in-args 反模式) 切到官方 hosted `https://mcp.supabase.com/mcp?project_ref=...&read_only=true`;Edge Functions 章节加上生产形态(raw HTTP / `<project-ref>.supabase.co/functions/v1` / `--no-verify-jwt` 取舍);加 Supabase MCP 整节
-- [ ] **#26 — SPEC §2.2 文件型凭证统一方案**(`type: file` / tempfile recipe / Trove 自动 materialize)。基础设施改动,会影响 #24 的具体做法
-- [ ] **#24 — google-analytics 加 stdio mcp: block** — 等 #26 锁死文件型凭证机制后再加(SA JSON file-path env 是核心张力)
+- [x] **#26 — SPEC §2.3 文件型凭证一等公民** — `type: file` schema、`files/<KEY>.<ext>` 存储约定、`${credential.X}` 按字段类型分发为路径或字面值、单独 `trove migrate` 子命令、UI 表单拆 widget。`ui/credentials.ts` 集中所有凭证 disk I/O。simplify pass 3 个并行 agent 评审 (reuse / quality / efficiency)
+- [x] **#24 — google-analytics stdio MCP** — `mcp:` block 配 `pipx run google-analytics-mcp` + `GOOGLE_APPLICATION_CREDENTIALS: ${credential.GOOGLE_SERVICE_ACCOUNT_JSON}`（自动解析为文件路径），end-to-end migrate 通过
+- [x] **google-search-console 升级 type:file** — 同上模式（GSC MCP server 出现时一行 frontmatter 即可接通）
 
 ## v0.2.x — Backlog (低优先)
 

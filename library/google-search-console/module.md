@@ -18,12 +18,14 @@ credentials:
     required: true
     help: "Property URL exactly as registered. Two formats: 'https://example.com/' (URL-prefix property) OR 'sc-domain:example.com' (domain property). Different formats — use the one shown in GSC dashboard for that property"
   GOOGLE_SERVICE_ACCOUNT_JSON:
-    type: multiline
+    type: file
+    file_format: json
+    file_mode: "0600"
     required: true
-    help: "Same service-account JSON as google-analytics. Service account email must be added as user on the GSC property at https://search.google.com/search-console/users (Owners → Add user)"
+    help: "Same service-account JSON as google-analytics. Service account email must be added as user on the GSC property at https://search.google.com/search-console/users (Owners → Add user). Paste the full {type:'service_account',...} blob — trove stores it as a real file at ~/.trove/google-search-console/files/GOOGLE_SERVICE_ACCOUNT_JSON.json."
 
 trove_spec: "0.1"
-last_verified: "2026-05-12 · sites.list returned configured site with SA auth"
+last_verified: "2026-05-12 · sites.list returned configured site with SA auth. 2026-05-13: upgraded credentials from `type: multiline` to `type: file` per SPEC §2.3 — `${credential.GOOGLE_SERVICE_ACCOUNT_JSON}` now resolves to file path, ready for any future GSC MCP server"
 ---
 
 # Google Search Console API Usage Guide
@@ -36,18 +38,21 @@ last_verified: "2026-05-12 · sites.list returned configured site with SA auth"
 4. **Default API row limit: 1,000 rows per request**, max 25,000. Use `startRow` for pagination; data is ordered by clicks desc by default
 5. **Discrepancies between API and GSC UI are real** — UI does additional deduplication; API returns raw aggregations. Don't expect pixel-perfect match
 6. **Maximum 16 months of historical data** — older data is auto-purged. Plan to mirror to your own warehouse if you need long-term trends
-7. **Service-account JSON is stored as a stringified blob in credentials.json** — same as google-analytics, JSON.parse before passing to SDK
+7. **Service account is stored as a real file** at `~/.trove/google-search-console/files/GOOGLE_SERVICE_ACCOUNT_JSON.json` (`type: file` per SPEC §2.3). Anywhere you'd see `GOOGLE_APPLICATION_CREDENTIALS` in Google SDK docs, point it at that path
 
 ---
 
 ## SDK setup
 
+The googleapis SDK auto-discovers credentials from `GOOGLE_APPLICATION_CREDENTIALS` (a file path):
+
 ```typescript
 import { google } from 'googleapis';
 
-const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON!);
+process.env.GOOGLE_APPLICATION_CREDENTIALS =
+  `${process.env.HOME}/.trove/google-search-console/files/GOOGLE_SERVICE_ACCOUNT_JSON.json`;
+
 const auth = new google.auth.GoogleAuth({
-  credentials,
   scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],
 });
 
@@ -58,7 +63,7 @@ const siteUrl = process.env.GSC_SITE_URL!;
 Shell-pipeline credential extraction:
 ```bash
 export GSC_SITE_URL=$(jq -r .GSC_SITE_URL ~/.trove/google-search-console/credentials.json)
-export GOOGLE_SERVICE_ACCOUNT_JSON=$(jq -r .GOOGLE_SERVICE_ACCOUNT_JSON ~/.trove/google-search-console/credentials.json)
+export GOOGLE_APPLICATION_CREDENTIALS=~/.trove/google-search-console/files/GOOGLE_SERVICE_ACCOUNT_JSON.json
 ```
 
 ---

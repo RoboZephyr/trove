@@ -53,7 +53,7 @@ For services with MCP servers, the AI merges the `mcp:` config into your agent's
 
 ## Status
 
-**v0.2** — Web UI shipped, 16 modules in `library/` gated by a `last_verified` field (modules without real verification were dropped at v0.2 release). Format spec is stable; AI-assisted module authoring (v0.3) in progress.
+**v0.2.1** — Web UI shipped, 17 modules in `library/` gated by `last_verified`, SPEC §2.3 file-type credentials live (`trove migrate` relocates legacy multiline-string blobs into a stable `files/<KEY>.<ext>` path; google-analytics + google-search-console use it). Format spec is stable; AI-assisted module authoring (v0.3) in progress.
 
 See:
 - [SPEC.md](./SPEC.md) — full format specification (Chinese, English translation forthcoming)
