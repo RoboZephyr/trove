@@ -1,6 +1,6 @@
 # Trove Roadmap
 
-> Status as of 2026-05-12.
+> Status as of 2026-05-13.
 
 Trove is a hobby OSS project. There is no fixed timeline. Items are roughly ordered by priority within each phase.
 
@@ -15,7 +15,7 @@ Trove is a hobby OSS project. There is no fixed timeline. Items are roughly orde
 - [x] `trove validate` — frontmatter + credentials.json field alignment check, with `.example.json` fallback
 - [x] Real-world dogfood log (SPEC §10): multiple entries from actual usage, each producing a SPEC revision
 - [x] `last_verified` field + verify-gate baseline across all modules ([SPEC §2.1](./SPEC.md))
-- [ ] Translate SPEC.md to English (defer until spec stabilizes after MCP work below)
+- [ ] ~~Translate SPEC.md to English~~ — now moved to **v0.2.x → OSS launch prep** below (MCP work is done, spec has stabilized)
 
 ## v0.2 — Web UI 🟡 Released, polish pending
 
@@ -30,11 +30,11 @@ Stack: Bun + Hono + HTMX + Tailwind CDN, server-side rendered.
 - [x] Module detail view — frontmatter + rendered skill.md body
 - [x] Library browse screen — list bundled `library/` modules
 - [x] Empty state — setup wizard when `~/.trove/` is empty
-- [x] Landing site rewrite for v0.2 reality (`site/index.html`, deployed at trove.roboz.dev)
-- [ ] Credentials inline edit form (GET returns masked `••••••••`, PATCH overwrites plaintext file)
-- [ ] Library install three-step flow: copy `module.md` → prompt credentials → reload grid
-- [ ] Quick Start cards on empty state (minimax / cloudflare / anthropic)
-- [x] **npm distribution** — `@robozephyr/trove` scoped package; `trove validate` / `trove ui` subcommands via single `bin/cli.ts`; esbuild bundle to `dist/cli.js`; Node 22+; `bin/` field maps `trove` command. Bare `trove` name on npm is squatted by a 2014 dead package — scoped name chosen. Homebrew tap deferred to v1.0
+- [x] Landing site rewrite for v0.2 reality (`site/index.html`, deployed). Repositioned 2026-05-13 around cross-project credential reuse (MCP demoted to feature)
+- [x] Credentials inline edit form — masked password fields with eye-icon reveal, file-type fields with present/replace/delete widget, HTMX PATCH preserves unchanged fields. Implemented per SPEC §2.3
+- [x] Library install three-step flow: `installFromLibrary` copies module.md → POST `/api/install` redirects to `/m/<name>` → user fills form. Also exposed as `trove install <name>` CLI
+- [x] Quick Start cards on empty state — `homePage` shows `QUICK_START = ["minimax", "cloudflare", "anthropic"]` when `~/.trove/` is empty
+- [x] **npm distribution** — `@robozephyr/trove` scoped package; `trove validate` / `trove ui` / `trove install` / `trove migrate` subcommands via single `bin/cli.ts`; esbuild bundle to `dist/cli.js`; Node 22+. Bare `trove` name on npm is squatted by a 2014 dead package — scoped name chosen. Latest published version: **0.2.2**
 - [ ] Homebrew tap (`brew install robozephyr/trove/trove`) — v1.0 item, needs binary build (`bun build --compile` or pkg-style)
 
 ## v0.2.x — MCP work面 (current focus)
@@ -52,10 +52,49 @@ Stack: Bun + Hono + HTMX + Tailwind CDN, server-side rendered.
 
 ## v0.2.x — Backlog (低优先)
 
-- [ ] More modules: upstash (redis), neon/turso (db), replicate / groq (AI), **npm** (registry + publish workflow — dogfood from shipping `@robozephyr/trove` itself)
-- [x] `trove install <name>...` CLI sidecar — copy library modules into `~/.trove/`; `--list` shows available + installed status; `--force` to overwrite; idempotent. Credentials still filled via `trove ui` or `$EDITOR` (TTY-interactive password/multiline prompts deemed not worth the friction). Git-URL install still TBD
-- [ ] `trove install <git-url>` — install from arbitrary git repo (community modules); follow-up to the basic install command
-- [ ] Re-verify the rest of the modules to production-grade `last_verified`(目前多数还是 single-call smoke,非 "production · daily use")
+- [ ] More modules: upstash (redis), neon/turso (db), replicate / groq (AI) — **deferred until OSS launch is closer**; new module breadth serves future users, not current need
+- [x] **npm module** (registry + publish workflow — dogfood from shipping `@robozephyr/trove` itself); covers token types, scoped-package private-by-default, bare-name squat, double-shebang trap, Bypass-2FA Granular Token, `NPM_CONFIG_USERCONFIG=<tempfile>` for non-interactive publish. `last_verified: production`
+- [x] `trove install <name>...` CLI sidecar — copy library modules into `~/.trove/`; `--list` shows available + installed status; `--force` to overwrite; idempotent
+- [ ] `trove install <git-url>` — install from arbitrary git repo (community modules); needed for the marketplace story but not for v1.0 launch
+- [ ] Re-verify the rest of the modules to production-grade `last_verified` — happens organically as maintainer (or contributors) use modules in real projects. Currently **5 production · 10 verified · 2 partial** out of 17
+
+## v0.2.x → OSS launch prep (active)
+
+**Goal**: bring trove from "maintainer's tool" to "first external users can adopt without hand-holding." Per the 4-week soft-launch sequence (see [README §Status](./README.md)).
+
+**Content polish (Week 1)**
+
+- [x] CONTRIBUTING.md refresh — current CLI surface, `last_verified` tier contract, OSS privacy rules, file-type creds, module-improvement track (2026-05-13)
+- [x] AGENTS.md — agent-contributor conventions (2026-05-12)
+- [x] Three-layer private-leak protection — PreToolUse hook + memory + AGENTS.md (2026-05-13). Mechanism caught its own first SPEC §10 entry — see entry for live evidence
+- [x] Positioning rewrite — "one ~/.trove/ shared across every agent in every project" as H1; MCP demoted to optional H2 (2026-05-13)
+- [ ] **SPEC.md English translation** — was v0.1 deferred item; now unblocked since MCP work + file-type creds stabilized the spec. ~half-day work; can do in two passes (§0–§4 core schema first, §5+ later)
+- [ ] **"Killer demo"** — short screencast / animated GIF of the core flow: `npm i -g @robozephyr/trove` → `trove install stripe` → fill creds → `echo '@~/.trove/stripe/module.md' >> CLAUDE.md` → AI knows Stripe. Should NOT use the maintainer's real project — synthesize a generic flow
+- [ ] README.zh-CN.md — referenced from README but doesn't exist; either create or remove the link
+
+**Beta circle (Week 2)**
+
+- [ ] Show to 5–10 AI-engineering friends; collect 5 specific pieces of feedback
+- [ ] Triage feedback: bugs → fix; positioning gaps → README edits; missing module categories → log for backlog
+- [ ] Iterate on the killer demo if it's not landing in 5 seconds
+
+**Public launch (Week 3–4)**
+
+- [ ] Launch post — lead with the demo story (cross-project credential reuse), not the SPEC. Mention MCP support as a bonus, not the headline
+- [ ] awesome-claude-code PR
+- [ ] Anthropic Discord — mention in #show-and-tell
+- [ ] Pinned X / Twitter post
+- [ ] Show HN — accept that it may not front-page; "trickle adoption" is the expected outcome
+
+**Sustainability commitment**
+
+- [x] Maintainer commits to ~2 hrs/week issue + PR triage for at least 6 months post-launch (2026-05-13 affirmation)
+
+**Pending live verifications (no rush, opportunistic)**
+
+- [ ] supabase Edge Functions — `last_verified` says "production-active separately" but no independent smoke. Run one signed Edge Function call to fully verify
+- [ ] fal-ai promotion — currently `verified` from a single image gen. Promote to `production` once a real downstream usage matures with real volume / failure modes captured; module body should pick up any gotchas surfaced (cold start, queue, rate limit, model-specific param quirks)
+- [ ] google-ads upgrade to `type: file` — currently uses string-typed multiline. Maintainer hasn't verified the Ads API recently (refresh_token state unclear), so the file-type retrofit waits for a real verification round
 
 ## v0.3 — AI-Assisted Module Authoring
 
@@ -68,15 +107,15 @@ Stack: Bun + Hono + HTMX + Tailwind CDN, server-side rendered.
 - [ ] LLM provider selection in `~/.trove/config.json` (default: anthropic, fallbacks: openai, ollama)
 - [ ] "Where is this module used" reverse lookup in Web UI
 
-## v1.0 — OSS launch
+## v1.0 — Post-launch consolidation
 
-**Goal**: first external users can adopt without hand-holding.
+**Goal**: stable platform with community contributions flowing.
 
-- [ ] Polish docs, complete English translation of all materials
-- [ ] Module marketplace (community contributions, browse/install in Web UI)
+- [ ] Module marketplace (community contributions, browse/install in Web UI; depends on `trove install <git-url>` from v0.2.x backlog)
 - [ ] Cross-agent verification: same module works correctly in Claude Code / Codex / Cursor (today's targets; other `@-reference`-supporting agents added as contributors verify them)
-- [ ] Distribute via npm (`@trove/cli`, scoped to avoid old `trove` v0.1.0 conflict) and Homebrew
-- [ ] Launch blog post + submission to awesome-claude-code
+- [x] ~~Distribute via npm~~ — done in v0.2 as `@robozephyr/trove` (the old `@trove/cli` plan was abandoned since the maintainer's own scope was sufficient)
+- [ ] Homebrew tap — for the "I don't have Node" audience
+- [ ] Complete English translation of all materials (SPEC done in v0.2.x prep above; this covers any remaining Chinese-only docs that surface during launch)
 
 ## Out of scope (intentional non-goals)
 
