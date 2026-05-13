@@ -53,7 +53,8 @@ Stack: Bun + Hono + HTMX + Tailwind CDN, server-side rendered.
 ## v0.2.x — Backlog (低优先)
 
 - [ ] More modules: upstash (redis), neon/turso (db), replicate / groq (AI), **npm** (registry + publish workflow — dogfood from shipping `@robozephyr/trove` itself)
-- [ ] `trove install <name-or-path>` CLI sidecar (copy from `library/` 或 git URL 到 `~/.trove/`)
+- [x] `trove install <name>...` CLI sidecar — copy library modules into `~/.trove/`; `--list` shows available + installed status; `--force` to overwrite; idempotent. Credentials still filled via `trove ui` or `$EDITOR` (TTY-interactive password/multiline prompts deemed not worth the friction). Git-URL install still TBD
+- [ ] `trove install <git-url>` — install from arbitrary git repo (community modules); follow-up to the basic install command
 - [ ] Re-verify the rest of the modules to production-grade `last_verified`(目前多数还是 single-call smoke,非 "production · daily use")
 
 ## v0.3 — AI-Assisted Module Authoring
