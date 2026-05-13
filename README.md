@@ -1,31 +1,37 @@
 # Trove
 
-> Battle-tested service playbooks + a unified credentials & MCP home that any AI coding agent (Claude Code · Cursor · Codex · Aider) reuses across every project on your machine.
+> **One `~/.trove/` directory. Every AI coding agent — Claude Code, Codex, Cursor — in every project on your machine reuses the same API credentials and service playbooks.**
 
 [简体中文](./README.zh-CN.md)
 
-Trove is a directory format and a tiny tool around it. For each third-party service you use, one `~/.trove/<service>/` folder holds three layers the AI needs but no single existing tool unifies:
+No more re-pasting Stripe keys into a fresh `.env` for every project. No more re-explaining "this service has a quirk that bit me last time" to a fresh agent session. Add a service once at `~/.trove/<service>/`; reference it from any project's `CLAUDE.md` / `AGENTS.md` / `.cursorrules` with one line:
 
-1. **The playbook** (the moat) — gotchas, billing pitfalls, error-code tables, real code snippets, written from production dogfood. Stripe amounts in cents. Supabase RLS opt-in default. GA4 service-account-as-user-not-IAM. The stuff that gets a senior engineer paged at 2am — pre-loaded so the AI doesn't step on it
-2. **API credentials** — keys / tokens / refresh tokens, gitignored at file-mode 600
-3. **MCP server pointers** — `mcp:` block per module, so the AI configures the agent it's running in
+```markdown
+@/Users/you/.trove/stripe/module.md
+```
 
-**No inject step. No init step. No cross-agent adapters.** AI is the runtime: it reads modules, fetches credentials on demand, and even installs MCP servers when needed. Switch projects: same trove. Switch agents (Claude Code → Cursor): same trove.
+The AI loads the module on session start. It now knows your Stripe key, the gotchas (amounts in cents, restricted keys over secret keys, idempotency-key requirement), and — if a Stripe MCP server is wired up — calls it directly.
 
-## Why this matters more in the MCP era
+**No inject step. No init step. No per-agent shims.** Trove is a plain directory; the AI is the runtime.
 
-Before MCP, an AI agent needed natural-language docs to call your services. Now it can call MCP servers directly — but every agent has its own mcp.json: `~/.claude.json`, `~/.cursor/mcp.json`, `~/.codex/...`. Adding one service to four agents means editing four files. And MCP alone is not enough — most MCP servers cover the happy path only, leaving the AI to rediscover the production landmines that the playbook layer captures.
+## What's in each module
 
-Trove's `module.md` carries all three layers (playbook + credentials + MCP config) in one file. The AI loads the module, reads the credentials, configures the agent's MCP, and consults the playbook when the MCP server doesn't cover the case (most of them don't, yet). **One file, three layers, every agent.**
+Per service, one folder holds three layers:
+
+1. **The playbook** — gotchas, billing pitfalls, error-code tables, real code snippets, written from production dogfood. Stripe amounts in cents. Supabase RLS opt-in default. GA4 service-account-as-user-not-IAM. The stuff that gets a senior engineer paged at 2am
+2. **API credentials** — keys / tokens / files (for service-account JSON / SSH keys / certs), gitignored at file-mode 600
+3. **MCP server pointers** (optional) — `mcp:` block per module, so the AI configures the agent's MCP settings on first use
+
+Same module works in every agent that supports absolute-path `@-reference`. Switch projects: same trove. Switch agents (Claude Code → Codex → Cursor): same trove.
 
 ## How it doesn't try to be other tools
 
 | Trove is NOT replacing | Because |
 |---|---|
-| `.env` + `direnv` | Env files have no skill knowledge, no MCP config, and re-fragment per-project. Trove keeps creds but adds the two layers env can't carry |
-| `~/.claude/skills/` (and equivalents) | Those are agent-specific. Trove modules are referenced from `CLAUDE.md` / `AGENTS.md` / `.cursorrules` by absolute path, so the same module serves every agent that supports `@-reference` |
+| `.env` + `direnv` | Env files re-fragment per project — every new repo means re-pasting the same Stripe key. They also carry no skill knowledge and no MCP config. Trove is the cross-project home env files never tried to be |
+| `~/.claude/skills/` (and equivalents) | Agent-specific — locked to Claude Code. Trove modules are referenced by absolute path from any agent that supports `@-reference`, so the same module serves Claude Code / Codex / Cursor without re-authoring |
 | 1Password CLI / `op run` | Credentials only — no playbook, no MCP wiring. Use 1Password as the source-of-truth vault and pull values into trove if you want; the two compose |
-| Writing your own skill files per project | Every project re-pays the same authoring cost; trove de-duplicates that across N projects, and the `last_verified` field makes "is this knowledge still correct?" auditable |
+| Writing your own skill files per project | Every project re-pays the authoring cost; trove de-duplicates that across N projects, and `last_verified` makes "is this knowledge still correct?" auditable |
 | A SaaS / cloud sync | Local-first by design. Sync via git remote / iCloud Drive / rsync — whichever you already use |
 
 ## How it works
@@ -34,22 +40,44 @@ A module is a directory under `~/.trove/`:
 
 ```
 ~/.trove/minimax/
-├── module.md           # YAML frontmatter (schema, applies_to, MCP) + Markdown skill body
-└── credentials.json    # Secret values (gitignored, file-mode 600)
+├── module.md           # YAML frontmatter (schema, applies_to, optional MCP) + skill body
+├── credentials.json    # secret values — gitignored, mode 600
+└── files/              # (optional) file-type creds: SA JSON / SSH key / cert
 ```
 
-Reference it from any project's `CLAUDE.md`:
+On session start, the AI:
 
-```markdown
-@/Users/you/.trove/minimax/module.md
+1. Auto-loads the referenced modules (any agent supporting `@-reference` to an absolute path)
+2. Reads `credentials.json` and `files/` directly when calling the API — no env export, no shell-history exposure
+3. Consults the playbook body when it hits a code path that has known gotchas
+4. Updates the project's `CLAUDE.md` / `AGENTS.md` / `.cursorrules` if you ask it to add a new module
+
+For services with MCP servers, see the next section.
+
+## MCP support (optional layer)
+
+Most modern services ship MCP servers — Stripe, Supabase, Google Analytics, npm, etc. Each agent has its own MCP config file (`~/.claude.json`, `~/.cursor/mcp.json`, `~/.codex/...`). Adding one service to three agents currently means editing three files.
+
+Trove modules can carry an `mcp:` block declaring the canonical install:
+
+```yaml
+mcp:
+  type: http
+  url: https://mcp.stripe.com
 ```
 
-That's it. The AI:
-1. Auto-loads the module on session start (Claude Code native `@-reference`)
-2. Reads `credentials.json` directly when calling the API (no env export needed)
-3. Updates the project's CLAUDE.md when you ask it to add a new module
+Or for stdio servers:
 
-For services with MCP servers, the AI merges the `mcp:` config into your agent's MCP settings the first time you use it.
+```yaml
+mcp:
+  type: stdio
+  command: pipx
+  args: ["run", "google-analytics-mcp"]
+  env:
+    GOOGLE_APPLICATION_CREDENTIALS: ${credential.GOOGLE_SERVICE_ACCOUNT_JSON}
+```
+
+The `${credential.X}` substitution resolves to the field's value (string fields) or absolute path (file fields, SPEC §2.3). The AI merges the block into the agent's MCP config on first use — one place to declare, one place to update, applies to every agent.
 
 ## Status
 

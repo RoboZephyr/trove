@@ -1,6 +1,6 @@
 # AGENTS.md — conventions for AI coding agents working on trove
 
-This file is for AI agents (Claude Code, Cursor, Codex, Aider, etc.) contributing to **trove itself**. Trove is a published OSS project (`@robozephyr/trove` on npm), so anything you commit ships to public users.
+This file is for AI agents (Claude Code, Codex, Cursor, and any other agent that supports absolute-path `@-reference`) contributing to **trove itself**. Trove is a published OSS project (`@robozephyr/trove` on npm), so anything you commit ships to public users.
 
 ## Distribution-bound files MUST be generic
 
@@ -37,7 +37,7 @@ A pre-commit hook scans staged diffs for the maintainer's known private identifi
 - **Read SPEC §0 before changing format behavior**. The hand-friendly / plain-text / zero-tooling principles are load-bearing — anything that violates them needs explicit user discussion.
 - **Validate before committing**. `bun run validate --library` must be 0 errors. `bun run typecheck` must be clean.
 - **TROVE_HOME = `~/.trove/`** — module disk shape: `~/.trove/<svc>/module.md` + `credentials.json` + optional `files/<KEY>.<ext>` (SPEC §2.3).
-- **No new agent-specific shims**. trove deliberately doesn't have per-agent adapters; modules are referenced via absolute path from `@-reference`-supporting agents (Claude Code, Cursor, Codex, Aider). If a new agent needs special handling, raise the design question first — don't unilaterally add a code path.
+- **No new agent-specific shims**. trove deliberately doesn't have per-agent adapters; modules are referenced via absolute path from any agent that supports `@-reference`. If a new agent needs special handling, raise the design question first — don't unilaterally add a code path.
 
 ## File map for agents
 

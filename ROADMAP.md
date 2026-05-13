@@ -74,7 +74,7 @@ Stack: Bun + Hono + HTMX + Tailwind CDN, server-side rendered.
 
 - [ ] Polish docs, complete English translation of all materials
 - [ ] Module marketplace (community contributions, browse/install in Web UI)
-- [ ] Cross-agent verification: same module works correctly in Claude Code / Cursor / Codex / Aider
+- [ ] Cross-agent verification: same module works correctly in Claude Code / Codex / Cursor (today's targets; other `@-reference`-supporting agents added as contributors verify them)
 - [ ] Distribute via npm (`@trove/cli`, scoped to avoid old `trove` v0.1.0 conflict) and Homebrew
 - [ ] Launch blog post + submission to awesome-claude-code
 

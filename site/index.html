@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Trove — battle-tested service playbooks + unified MCP / creds for AI coding agents</title>
-<meta name="description" content="One ~/.trove/ directory holds the playbook (gotchas + production lessons), API credentials, and MCP server pointers for every service you use. Any AI agent (Claude Code, Cursor, Codex, Aider) reuses them across all your projects. No inject step. AI is the runtime.">
+<title>Trove — one ~/.trove/ shared across every AI coding agent in every project</title>
+<meta name="description" content="One ~/.trove/ directory holds your API credentials and service playbooks for every service you use. Every AI coding agent (Claude Code, Codex, Cursor) reuses them across every project on your machine. No more re-pasting Stripe keys into fresh .env files.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -86,7 +86,7 @@
 </pre>
 
 <h1>Trove</h1>
-<p class="lede">Battle-tested service playbooks + a unified credentials &amp; MCP home that any AI coding agent (Claude Code · Cursor · Codex · Aider) reuses across every project on your machine.</p>
+<p class="lede"><strong>One <code>~/.trove/</code> directory.</strong> Every AI coding agent — Claude Code, Codex, Cursor — in every project on your machine reuses the same API credentials and service playbooks.</p>
 
 <div class="stat-row">
   <span><strong>17</strong> modules in library</span>
@@ -95,39 +95,25 @@
   <span><strong>v0.2.2</strong> · 5 production modules</span>
 </div>
 
-<p>For each third-party service you use, one <code>~/.trove/&lt;service&gt;/</code> folder holds three layers the AI needs but no single existing tool unifies — the <strong>playbook</strong> (gotchas, billing pitfalls, error tables sourced from production dogfood), the <strong>credentials</strong> (gitignored, file-mode 600), and the <strong>MCP server pointer</strong> for that service. The AI loads all three on session start.</p>
+<p>No more re-pasting Stripe keys into a fresh <code>.env</code> for every project. No more re-explaining "this service has a quirk that bit me last time" to a fresh agent session. Add a service once at <code>~/.trove/&lt;service&gt;/</code>; reference it from any project's <code>CLAUDE.md</code> / <code>AGENTS.md</code> / <code>.cursorrules</code> with one line:</p>
 
-<p><strong>No inject step. No cross-agent adapters. AI is the runtime.</strong></p>
+<pre>@/Users/you/.trove/stripe/module.md</pre>
+
+<p>The AI loads the module on session start. It now knows your Stripe key, the gotchas (amounts in cents, restricted keys over secret keys, idempotency-key requirement), and — if a Stripe MCP server is wired up — calls it directly.</p>
+
+<p><strong>No inject step. No init step. No per-agent shims.</strong> Trove is a plain directory; the AI is the runtime.</p>
 
 <h2>How it works</h2>
 
-<pre>~/.trove/
-├── minimax/
-│   ├── module.md         # YAML frontmatter + skill body
-│   └── credentials.json  # secrets (gitignored, 600 perms)
-├── cloudflare/
-├── stripe/
-└── ...</pre>
+<p>Per service, one folder holds three layers:</p>
 
-<p>Reference from any project's <code>CLAUDE.md</code>:</p>
+<pre>~/.trove/stripe/
+├── module.md             # YAML frontmatter + gotchas-first skill body
+├── credentials.json      # secret values — gitignored, mode 600
+└── files/                # (optional) SA JSON / SSH key / cert
+    └── ...</pre>
 
-<pre>@trove.md</pre>
-
-<p>Where <code>trove.md</code> lists the modules this project actually needs:</p>
-
-<pre>@/Users/you/.trove/minimax/module.md
-@/Users/you/.trove/cloudflare/module.md
-@/Users/you/.trove/stripe/module.md</pre>
-
-<p>The AI auto-loads each module, fetches credentials on demand (via <code>jq</code>, no env pre-export), and configures MCP servers when needed. <strong>No tooling required to start — the directory convention IS the runtime.</strong></p>
-
-<h2>Why this matters more in the MCP era</h2>
-
-<p>Before MCP, AI agents needed natural-language docs to call your services. Now they can call MCP servers directly — but every agent has its own mcp.json: <code>~/.claude.json</code>, <code>~/.cursor/mcp.json</code>, <code>~/.codex/...</code>. Adding one service to four agents means editing four files.</p>
-
-<p>And MCP alone is not enough. Most MCP servers ship the happy path; the production landmines — Stripe amounts in cents, Supabase RLS opt-in default, GA4 service-account-as-user — still live in the docs and the maintainer's memory. The AI will rediscover them at 2am unless the playbook is loaded.</p>
-
-<p>Trove's <code>module.md</code> carries all three layers in one file. The AI loads the module, reads the credentials, configures the agent's MCP, and consults the playbook when the MCP server falls short. <strong>One file, three layers, every agent.</strong></p>
+<p>On session start, the AI auto-loads the referenced modules (any agent supporting <code>@-reference</code> to an absolute path), reads <code>credentials.json</code> and <code>files/</code> directly when calling the API, and consults the playbook body when it hits a known-gotcha code path. <strong>No tooling required to start — the directory convention IS the runtime.</strong></p>
 
 <h2>How is this different from…</h2>
 
@@ -135,16 +121,16 @@
   <thead><tr><th>Tool</th><th>Why Trove isn't replacing it</th></tr></thead>
   <tbody>
     <tr><td><code>.env</code> + direnv</td><td>Env files have no skill knowledge, no MCP config, and re-fragment per-project. Trove keeps creds but adds the two layers env can't carry.</td></tr>
-    <tr><td><code>~/.claude/skills/</code></td><td>Agent-specific. Trove modules are referenced from <code>CLAUDE.md</code> / <code>AGENTS.md</code> / <code>.cursorrules</code> by absolute path, so the same module serves every agent that supports <code>@</code>-reference.</td></tr>
+    <tr><td><code>~/.claude/skills/</code></td><td>Agent-specific — locked to Claude Code. Trove modules are referenced by absolute path from <code>CLAUDE.md</code> / <code>AGENTS.md</code> / <code>.cursorrules</code>, so the same module serves Claude Code / Codex / Cursor without re-authoring.</td></tr>
     <tr><td>1Password CLI / <code>op run</code></td><td>Credentials only — no playbook, no MCP wiring. Use 1Password as the source-of-truth vault and pull values into trove if you want; the two compose.</td></tr>
     <tr><td>Per-project skill files</td><td>Every project re-pays the authoring cost; trove de-duplicates across N projects, and the <code>last_verified</code> field makes "is this knowledge still correct?" auditable.</td></tr>
     <tr><td>A SaaS / cloud sync</td><td>Local-first by design. Sync via git remote / iCloud Drive / rsync — whichever you already use.</td></tr>
   </tbody>
 </table>
 
-<h2>Web UI (v0.2)</h2>
+<h2>Web UI</h2>
 
-<p>Run <code>trove ui</code> and a localhost dashboard at <code>http://127.0.0.1:7821</code> lets you browse installed modules, fill credentials through a form, and install new ones from the bundled library — all without ever opening <code>credentials.json</code> in <code>$EDITOR</code>.</p>
+<p>Run <code>trove ui</code> and a localhost dashboard at <code>http://127.0.0.1:7821</code> lets you browse installed modules, fill credentials through a form (eye-icon to reveal what you just typed), and install new ones from the bundled library — all without ever opening <code>credentials.json</code> in <code>$EDITOR</code>.</p>
 
 <pre>npm install -g @robozephyr/trove
 trove ui
@@ -154,10 +140,25 @@ trove ui
 
 <ul>
   <li><strong>Modules view</strong> — your installed modules grouped by category with credential-status indicators</li>
-  <li><strong>Library</strong> — 16 bundled module templates, one-click Install copies <code>module.md</code> into <code>~/.trove/</code></li>
-  <li><strong>Credentials form</strong> — masked password fields, inline save via HTMX, never round-trips plaintext through shell history</li>
-  <li><strong>Module detail</strong> — frontmatter + rendered skill markdown side-by-side</li>
+  <li><strong>Library</strong> — 17 bundled module templates, one-click Install copies <code>module.md</code> into <code>~/.trove/</code></li>
+  <li><strong>Credentials form</strong> — masked password fields with reveal toggle, file-type fields with present/replace/delete widget, inline save via HTMX</li>
+  <li><strong>Module detail</strong> — frontmatter + rendered skill markdown side-by-side, with <code>last_verified</code> tier dot</li>
 </ul>
+
+<h2>MCP support (optional)</h2>
+
+<p>Most modern services ship MCP servers — Stripe, Supabase, Google Analytics, npm, etc. Each agent has its own MCP config file (<code>~/.claude.json</code>, <code>~/.cursor/mcp.json</code>, <code>~/.codex/...</code>). Adding one service to three agents currently means editing three files.</p>
+
+<p>Trove modules can carry an <code>mcp:</code> block declaring the canonical install — HTTP for hosted MCP servers, stdio for local <code>pipx</code> / <code>npx</code> / <code>uvx</code> servers. The <code>${credential.X}</code> substitution resolves to the field's value (string fields) or absolute path (file fields). One place to declare, applies to every agent.</p>
+
+<pre>mcp:
+  type: stdio
+  command: pipx
+  args: ["run", "google-analytics-mcp"]
+  env:
+    GOOGLE_APPLICATION_CREDENTIALS: ${credential.GOOGLE_SERVICE_ACCOUNT_JSON}</pre>
+
+<p class="meta">Currently wired in <code>library/</code>: stripe, supabase, npm, google-analytics. Others are credential-only; opt-in.</p>
 
 <h2>What's in the library</h2>
 
