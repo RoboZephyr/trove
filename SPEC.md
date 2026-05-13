@@ -161,14 +161,19 @@ mcp:
 | `env` | stdio | server 进程的环境变量，**secret 必须 `${credential.X}` 引用**而不是字面值 |
 | `url` | http | MCP server 的 HTTP endpoint |
 
-**substitution 语法**：`${credential.KEY_NAME}` 在 `env:` / `args:` / `url:` 里都合法，install 时由 agent / Web UI 替换成 `credentials.json` 里的实际值。字面字符串无需替换。注意 `url:` 里多用于 query string（如 `?project_ref=${credential.PROJECT_REF}`）而非 host——host 应该是稳定的官方 endpoint。
+**substitution 语法**：`${credential.KEY_NAME}` 在 `env:` / `args:` / `url:` 里都合法，install 时由 agent / Web UI 替换。**语义按字段类型分发**：
+
+- string 系（`text` / `password` / `url` / `multiline` 等）→ 替换为 `credentials.json` 里的字面值
+- file 系（`type: file`）→ 替换为该字段对应文件的**绝对路径**（见 §2.3）
+
+字面字符串无需替换。注意 `url:` 里多用于 query string（如 `?project_ref=${credential.PROJECT_REF}`）而非 host——host 应该是稳定的官方 endpoint。
 
 **当 server 同时支持两种 transport** → 优先 `type: http`（零安装、不锁本机环境）。如对方还提供 stdio，可在 skill body 注明备用方式，但 frontmatter 只声 http。
 
 **反模式**（来自 SPEC §10 dogfood 沉淀）：
 
 1. ❌ **secret 进 `args:` 字面值**（如 lark-mcp 老版的 `["--app-secret", "sk_..."]`）—— secret 必须存在 `credentials.json` 并通过 `${credential.X}` 在 `env:` 里引用。若 server 设计上只接受 secret 当 CLI 参数,要么换 CLI/SDK 形态、要么用 stdin-based flag。
-2. ❌ **`env:` 里写硬编码绝对路径**（`GOOGLE_APPLICATION_CREDENTIALS: /Users/zephyr/.../foo.json`）—— 跨机器迁移即坏。文件型凭证的正式机制见 §2.2 待引入的 `type: file`（SPEC #26 工作项）；当前临时方案是把文件内容内联进 `multiline` 字段，由 skill body 教 AI runtime materialize。
+2. ❌ **`env:` 里写硬编码绝对路径**（`GOOGLE_APPLICATION_CREDENTIALS: /Users/zephyr/.../foo.json`）—— 跨机器迁移即坏。文件型凭证的正式机制是 `type: file`（见 §2.3）：声明字段类型为 file，substitution `${credential.X}` 返回 trove 维护的稳定文件路径。
 3. ❌ **`mcp:` 块缺 `type:`**（legacy 形态）—— 解释为 `type: stdio` 但 validate warn。每次写新 module 必须显式写 `type:`。
 
 **何处真正安装**：见 §3「MCP 配置」—— AI 把这个 block merge 到 agent 的 MCP config（`~/.claude.json` 的 `mcpServers`、`~/.cursor/mcp.json` 等）。Trove 不主动安装，只提供声明。
@@ -206,6 +211,126 @@ mcp:
 - **首选 Web UI**（`trove ui` → Configure 按钮）—— 字段自动校验、AI 引导式录入、test connection 一键验证。**这是 v0.2 的一等公民流程**，CLI 直接编辑文件是 fallback
 - **CLI fallback**（`$EDITOR ~/.trove/<svc>/credentials.json`）—— 急用、无 Web UI 启动时使用。但承担明文暴露在终端历史、截屏、远程协作时同事看到的风险
 - **绝不**：在 shell 里 `echo "KEY=xxx" > file`（命令历史里就是明文）
+
+---
+
+### 2.3 文件型凭证（`type: file`）
+
+某些服务的凭证天生是**文件**，不是字符串 —— 把它们硬塞 `credentials.json` 的 string 字段意味着用转义把多行 JSON / PEM block / SSH key 压成一行，违反 §0「手工友好」原则，也无法满足 SDK / MCP server 要求"给我一个文件路径"的接口。`type: file` 是这个张力的一等公民答案。
+
+**适用场景**（什么时候用 file，什么时候用 string）：
+- 用 `type: file`：GCP service account JSON、SSH private key、x509 cert/key、kubeconfig、`~/.aws/credentials` 这类文件、GPG keyring、p12 签名包
+- 用 string 系：API token / bearer / webhook secret / API base URL / 用户名 等单值
+
+**判定原则**：如果服务的 SDK / CLI / MCP server 接口接收**文件路径**（`GOOGLE_APPLICATION_CREDENTIALS=/path/...`、`ssh -i <path>`、`--cert <path>`）→ file；如果接收**值本身**（`Authorization: Bearer <value>`、`-H "X-API-Key: <value>"`）→ string。
+
+#### 2.3.1 Schema
+
+frontmatter 中声明：
+
+```yaml
+credentials:
+  GOOGLE_SA_JSON:
+    type: file
+    file_format: json          # 可选；UI 据此校验格式 + 选 syntax highlight
+    file_mode: "0600"          # 可选；默认 "0600"，要更严的用 "0400"
+    required: true
+    help: "console.cloud.google.com → IAM → Service Accounts → Keys → Add Key (JSON)"
+```
+
+支持的 `file_format` 值（v0.1）：`json` / `yaml` / `ini` / `pem` / `ssh-private-key` / `x509` / `raw`（默认）。仅作校验和扩展名线索，不改变存储方式 —— 文件内容按原始字节落盘。
+
+#### 2.3.2 存储约定
+
+文件型凭证**不出现在 `credentials.json`**。它们以真文件形式存放在模块目录下的 `files/` 子目录：
+
+```
+~/.trove/google-analytics/
+├── module.md
+├── credentials.json              # 只装 string-typed 字段（如 GA4_PROPERTY_ID）
+└── files/
+    └── GOOGLE_SA_JSON.json       # 文件名 = 凭证 key + .<file_format>
+```
+
+- **文件名约定**：`<KEY><.file_format?>`。若 `file_format` 是 `raw` 或缺省 → 不带后缀；否则用 format 名作为扩展（`.json` / `.yaml` / `.ini` / `.pem` 等）。代码里始终**正向生成**（key + format → filename），无需反向解析
+- **`files/` 目录权限 `0700`**（仅当前用户可进入）
+- **每文件权限 `file_mode`**（默认 `0600`，目录内 `umask 077` 创建）
+- `.gitignore` 规则：`**/credentials.json` + `**/files/`（v0.1 同时维护两条）
+
+#### 2.3.3 `${credential.X}` 替换语义
+
+substitution 行为**按字段类型分发**：
+
+| 字段 `type` | `${credential.X}` 替换为 |
+|---|---|
+| `text` / `password` / `url` / `select` / `boolean` / `number` / `multiline` | `credentials.json` 里该字段的字面值 |
+| `file` | `~/.trove/<module>/files/<X>` 的**绝对路径**字符串（不是文件内容） |
+
+显式访问器（避免歧义场景使用）：
+- `${credential.X.path}` —— 同 `${credential.X}` 对 file 类型，强调返回路径
+- `${credential.X.contents}` —— 返回文件原始内容（escape hatch；MCP `env:` 几乎不该用，少数 SDK 接受 inline blob 时可用）
+
+**典型用法**（google-analytics 的 `mcp:` 段）：
+
+```yaml
+mcp:
+  type: stdio
+  command: pipx
+  args: ["run", "google-analytics-mcp"]
+  env:
+    GOOGLE_APPLICATION_CREDENTIALS: ${credential.GOOGLE_SA_JSON}    # → 路径，正是 SDK 想要的
+    GA4_PROPERTY_ID: ${credential.GA4_PROPERTY_ID}                  # → 字面值
+```
+
+#### 2.3.4 校验（`trove validate` 行为）
+
+对每个 `type: file` 字段：
+1. 检查 `~/.trove/<module>/files/<KEY>.<file_format?>` 存在（按 schema 约定的路径计算）
+2. 检查文件大小 > 0
+3. 检查文件 mode 等于 `file_mode`（默认 `0600`）—— 不等则 warn 且建议 `chmod`
+4. 若声明了 `file_format`：粗校验内容（json → `JSON.parse`、pem → 含 `-----BEGIN ` 头、yaml → YAML.parse）—— 失败仅 warn，不 error
+5. 检查 `credentials.json` 里**没有**重复出现该 key（迁移残留检测；旧 `multiline` 字符串没清掉）
+
+对 string 字段：保持现有逻辑。
+
+#### 2.3.5 Web UI 表单
+
+`type: file` 字段在 form 里有两种输入方式：
+
+1. **粘贴**（默认）—— 文本域，接住 `cmd-V` 多行内容。提交时写盘
+2. **上传**（可选）—— `<input type="file">`，仅本地浏览器读取（不经服务器中转），同样写盘
+
+GET 时**永不返回文件内容**。返回元信息：
+
+```json
+{
+  "GOOGLE_SA_JSON": {
+    "$file": true,
+    "exists": true,
+    "size": 2347,
+    "mode": "0600",
+    "modified": "2026-05-13T14:22:00Z"
+  }
+}
+```
+
+PATCH 提交语义：**file 字段未出现在 PATCH payload 中 = 不动**。要修改才在 payload 里带值。删除走显式 `__delete: <KEY>` flag。比起 string 字段那种"`••••••••` 哨兵字符串等于不改"的 in-band 约定更干净（file 没有等价的视觉占位）。
+
+**SPEC 不规定 reveal/隐藏 UI 控件形态** —— 但**`GET API 永不返内容`是硬约束**（防 SSRF / 日志泄漏 / 截屏意外）。是否提供 password 眼睛 toggle、file 的 "Show contents" 折叠块，由 UI 实现决定。
+
+#### 2.3.6 从 `type: multiline` 迁移
+
+存量模块（如旧版 `google-analytics` 把 SA JSON 塞 `multiline` 字符串）的迁移：
+
+1. 模块 frontmatter 改 `type: multiline` → `type: file` + `file_format: json`
+2. 用户跑 `trove migrate <module>`（独立子命令，与只读的 `trove validate` 分开 —— validate 必须保持 read-only）：
+   - 读 `credentials.json` 里该 key 的字符串值
+   - 写到 `files/<KEY>.<format>`，mode `0600`
+   - 从 `credentials.json` 删除该 key
+   - 打印迁移摘要
+3. 验证：再跑 `trove validate <module>`，应当 0 error 0 warn
+
+`trove migrate` 是幂等的：已迁移过的字段会跳过（credentials.json 里没 key 且 files/ 里有文件 → 状态正确）。
 
 ---
 

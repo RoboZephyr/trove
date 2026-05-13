@@ -5,15 +5,18 @@
 
 import pkg from "../package.json" with { type: "json" };
 import { runValidate } from "./trove-validate";
+import { runMigrate } from "./migrate";
 import { startServer } from "../ui/server";
 
 const HELP = `Trove — local-first resource manager for AI coding agents
 
 Usage:
   trove ui                       Start local Web UI at http://127.0.0.1:7821
-  trove validate <module-dir>    Check a module against the Trove spec
+  trove validate <module-dir>    Check a module against the Trove spec (read-only)
   trove validate --all           Check every module under ~/.trove/
   trove validate --library       Check every bundled library/ module
+  trove migrate <module>         Relocate legacy multiline creds → files/ (SPEC §2.3)
+  trove migrate --all            Migrate every module under ~/.trove/
 
 Flags:
   -h, --help                     Show this help
@@ -34,6 +37,7 @@ async function main(argv: string[]): Promise<number> {
   }
 
   if (cmd === "validate") return runValidate(rest);
+  if (cmd === "migrate") return runMigrate(rest);
 
   if (cmd === "ui") {
     startServer();

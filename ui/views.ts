@@ -1,6 +1,7 @@
 import { html, raw } from "hono/html";
 import { marked } from "marked";
-import type { Module, CredentialField } from "./modules";
+import type { Module, CredentialField, MaskedValue } from "./modules";
+import { KEEP_PASSWORD_SENTINEL } from "./credentials";
 
 /**
  * Design system — derived from leonxlnx/taste-skill (anti-slop frontend) +
@@ -26,6 +27,46 @@ function Layout(props: { title: string; active: "home" | "library" | ""; childre
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script>
+    // Password reveal + file-replace toggle. Delegated click handler so
+    // HTMX-swapped forms continue to work without re-binding.
+    document.addEventListener('click', function(e) {
+      const t = e.target.closest('[data-reveal-target]');
+      if (t) {
+        const input = document.getElementById(t.getAttribute('data-reveal-target'));
+        if (input) {
+          const shown = input.getAttribute('type') === 'text';
+          input.setAttribute('type', shown ? 'password' : 'text');
+          t.setAttribute('aria-pressed', String(!shown));
+        }
+        return;
+      }
+      const r = e.target.closest('[data-file-action]');
+      if (r) {
+        const widget = r.closest('[data-file-widget]');
+        if (!widget) return;
+        const action = r.getAttribute('data-file-action');
+        const show = widget.querySelector('[data-file-summary]');
+        const editor = widget.querySelector('[data-file-editor]');
+        const delFlag = widget.querySelector('[data-file-delete-flag]');
+        if (action === 'replace') {
+          show.style.display = 'none';
+          editor.style.display = 'block';
+          editor.querySelector('textarea').focus();
+        } else if (action === 'cancel') {
+          editor.style.display = 'none';
+          show.style.display = 'flex';
+          editor.querySelector('textarea').value = '';
+          if (delFlag) delFlag.removeAttribute('name');
+        } else if (action === 'delete') {
+          if (!confirm('Delete this credential file?')) return;
+          if (delFlag) delFlag.setAttribute('name', '__delete');
+          widget.setAttribute('data-pending-delete', 'true');
+          show.querySelector('[data-file-status-label]').textContent = '✗ marked for deletion — Save to apply';
+        }
+      }
+    });
+  </script>
   <style>
     :root {
       --bg: #fafaf9;
@@ -135,18 +176,25 @@ function parseVerify(s: string | undefined): { tier: VerifyTier; label: string; 
   return { tier: "unknown", label: "unverified", full: s };
 }
 
-const verifyMeta: Record<VerifyTier, { dot: string; cls: string }> = {
-  production: { dot: "var(--good)", cls: "status-good" },
-  verified: { dot: "var(--good)", cls: "status-good" },
-  partial: { dot: "var(--warn)", cls: "status-warn" },
-  pending: { dot: "var(--ink-4)", cls: "status-mute" },
-  unknown: { dot: "var(--ink-4)", cls: "status-mute" },
+type VerifyColor = "good" | "warn" | "mute";
+const tierColor: Record<VerifyTier, VerifyColor> = {
+  production: "good",
+  verified: "good",
+  partial: "warn",
+  pending: "mute",
+  unknown: "mute",
+};
+const colorMeta: Record<VerifyColor, { dot: string; cls: string }> = {
+  good: { dot: "var(--good)", cls: "status-good" },
+  warn: { dot: "var(--warn)", cls: "status-warn" },
+  mute: { dot: "var(--ink-4)", cls: "status-mute" },
 };
 
 function VerifyBadge(props: { fm: { last_verified?: string } }) {
   const v = parseVerify(props.fm.last_verified);
-  return html`<span class="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded ${verifyMeta[v.tier].cls}" title="${v.full}">
-    <span class="dot" style="background:${verifyMeta[v.tier].dot}"></span>${v.label}
+  const meta = colorMeta[tierColor[v.tier]];
+  return html`<span class="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded ${meta.cls}" title="${v.full}">
+    <span class="dot" style="background:${meta.dot}"></span>${v.label}
   </span>`;
 }
 
@@ -267,7 +315,7 @@ export function credentialsBadgeOOB(mod: Module) {
   return html`<span id="cred-badge" hx-swap-oob="true" class="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded ${s.cls}">${StatusDot({ status: mod.credentialsFilled })}${s.label}</span>`;
 }
 
-export function credentialsForm(mod: Module, values: Record<string, string>) {
+export function credentialsForm(mod: Module, masked: Record<string, MaskedValue>) {
   const spec = mod.frontmatter.credentials ?? {};
   const keys = Object.keys(spec);
   if (keys.length === 0) {
@@ -283,16 +331,15 @@ export function credentialsForm(mod: Module, values: Record<string, string>) {
     >
       ${keys.map((key) => {
         const decl: CredentialField = spec[key] ?? {};
-        const value = values[key] ?? "";
-        const type = decl.type ?? "text";
         const id = `cred-${key}`;
         return html`
           <div>
             <label for="${id}" class="flex items-baseline gap-2 text-[12px] font-medium text-[var(--ink-2)] tracking-wide uppercase">
               <span class="mono">${key}</span>
               ${decl.required ? html`<span class="text-[var(--bad)] normal-case tracking-normal text-[10px] font-normal">required</span>` : html`<span class="text-[var(--ink-4)] normal-case tracking-normal text-[10px] font-normal">optional</span>`}
+              ${decl.type === "file" ? html`<span class="text-[var(--ink-4)] normal-case tracking-normal text-[10px] font-normal mono">file${decl.file_format && decl.file_format !== "raw" ? html` · ${decl.file_format}` : ""}</span>` : ""}
             </label>
-            ${renderField({ id, name: key, value, decl, type })}
+            ${renderField({ id, name: key, masked: masked[key], decl })}
             ${decl.help ? html`<p class="mt-1.5 text-[12px] text-[var(--ink-3)] leading-relaxed max-w-[70ch]">${decl.help}</p>` : ""}
           </div>`;
       })}
@@ -301,35 +348,99 @@ export function credentialsForm(mod: Module, values: Record<string, string>) {
           Save credentials
         </button>
         <span class="text-[11px] text-[var(--ink-4)] leading-relaxed">
-          Password fields show <code class="mono">••••••••</code> if set. Leave masked to keep, replace to change, clear to delete.
+          Click <span aria-label="eye">👁</span> to reveal what you typed. File contents are never displayed in this UI.
         </span>
       </div>
     </form>`;
 }
 
-function renderField(p: { id: string; name: string; value: string; decl: CredentialField; type: string }) {
-  const base = "input mt-1.5 w-full rounded px-3 py-2 text-[14px] text-[var(--ink)] placeholder-[var(--ink-4)]";
-  if (p.type === "select" && p.decl.options) {
-    return html`
-      <select id="${p.id}" name="${p.name}" class="${base}">
-        ${p.decl.options.map((opt) => html`<option value="${opt}" ${opt === p.value ? "selected" : ""}>${opt}</option>`)}
-      </select>`;
-  }
-  if (p.type === "multiline") {
-    return html`<textarea id="${p.id}" name="${p.name}" rows="4" class="${base} mono text-[12.5px] leading-relaxed">${p.value}</textarea>`;
-  }
-  if (p.type === "boolean") {
-    return html`
-      <select id="${p.id}" name="${p.name}" class="${base}">
-        <option value="true" ${p.value === "true" ? "selected" : ""}>true</option>
-        <option value="false" ${p.value === "false" ? "selected" : ""}>false</option>
-      </select>`;
-  }
-  const inputType = p.type === "password" ? "password" : p.type === "number" ? "number" : p.type === "url" ? "url" : "text";
-  return html`<input id="${p.id}" name="${p.name}" type="${inputType}" value="${p.value}" class="${base} ${p.type === "password" || p.type === "url" ? "mono text-[12.5px]" : ""}" autocomplete="off" />`;
+const FIELD_BASE = "input mt-1.5 w-full rounded px-3 py-2 text-[14px] text-[var(--ink)] placeholder-[var(--ink-4)]";
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function modulePage(mod: Module, credValues: Record<string, string>) {
+function maskToString(masked: MaskedValue | undefined): string {
+  return masked?.kind === "string" ? masked.value : "";
+}
+
+function renderField(p: { id: string; name: string; masked: MaskedValue | undefined; decl: CredentialField }) {
+  const type = p.decl.type ?? "text";
+  if (type === "file") return renderFileField(p);
+  if (type === "password") return renderPasswordField(p);
+  const value = maskToString(p.masked);
+  if (type === "select" && p.decl.options) {
+    return html`
+      <select id="${p.id}" name="${p.name}" class="${FIELD_BASE}">
+        ${p.decl.options.map((opt) => html`<option value="${opt}" ${opt === value ? "selected" : ""}>${opt}</option>`)}
+      </select>`;
+  }
+  if (type === "multiline") {
+    return html`<textarea id="${p.id}" name="${p.name}" rows="4" class="${FIELD_BASE} mono text-[12.5px] leading-relaxed">${value}</textarea>`;
+  }
+  if (type === "boolean") {
+    return html`
+      <select id="${p.id}" name="${p.name}" class="${FIELD_BASE}">
+        <option value="true" ${value === "true" ? "selected" : ""}>true</option>
+        <option value="false" ${value === "false" ? "selected" : ""}>false</option>
+      </select>`;
+  }
+  const inputType = type === "number" ? "number" : type === "url" ? "url" : "text";
+  return html`<input id="${p.id}" name="${p.name}" type="${inputType}" value="${value}" class="${FIELD_BASE} ${type === "url" ? "mono text-[12.5px]" : ""}" autocomplete="off" />`;
+}
+
+function renderPasswordField(p: { id: string; name: string; masked: MaskedValue | undefined; decl: CredentialField }) {
+  const present = p.masked?.kind === "password" ? p.masked.present : false;
+  const initial = present ? KEEP_PASSWORD_SENTINEL : "";
+  return html`
+    <div class="relative mt-1.5">
+      <input id="${p.id}" name="${p.name}" type="password" value="${initial}" class="${FIELD_BASE} mono text-[12.5px] mt-0 pr-10" autocomplete="off" />
+      <button type="button" aria-label="reveal" aria-pressed="false" data-reveal-target="${p.id}" class="absolute right-2 top-1/2 -translate-y-1/2 text-[14px] text-[var(--ink-3)] hover:text-[var(--ink)] px-1.5 py-0.5">👁</button>
+    </div>`;
+}
+
+function renderFileField(p: { id: string; name: string; masked: MaskedValue | undefined; decl: CredentialField }) {
+  const status = p.masked?.kind === "file" ? p.masked.status : { exists: false, size: 0, mode: null as number | null, modifiedISO: null as string | null };
+  const declMode = (p.decl.file_mode ?? "0600").toString();
+  const actualMode = status.mode !== null ? "0" + status.mode.toString(8) : null;
+  const modeOk = actualMode === null || actualMode === declMode || (declMode.length === 3 && actualMode.endsWith(declMode));
+
+  if (!status.exists) {
+    // No file yet — show textarea directly + a hidden delete-flag input for symmetry
+    return html`
+      <div data-file-widget>
+        <textarea id="${p.id}" name="${p.name}" rows="6" placeholder="Paste contents here…" class="${FIELD_BASE} mono text-[12.5px] leading-relaxed"></textarea>
+        <input type="hidden" data-file-delete-flag value="${p.name}" />
+      </div>`;
+  }
+
+  // File present — collapse to status row, "Replace" reveals an inline editor
+  return html`
+    <div data-file-widget class="mt-1.5 surface rounded">
+      <div data-file-summary class="flex items-center gap-3 px-3 py-2.5 text-[12.5px]">
+        <span data-file-status-label class="inline-flex items-center gap-1.5 ${modeOk ? "text-[var(--good)]" : "text-[var(--warn)]"}">
+          <span class="dot" style="background:${modeOk ? "var(--good)" : "var(--warn)"}"></span>
+          present · ${formatBytes(status.size)}${actualMode ? html` · ${actualMode}` : ""}${modeOk ? "" : html` <span class="mono text-[11px]">(expected ${declMode})</span>`}
+        </span>
+        <span class="ml-auto inline-flex gap-2">
+          <button type="button" data-file-action="replace" class="btn-quiet px-2.5 py-1 rounded text-[12px]">Replace</button>
+          <button type="button" data-file-action="delete" class="btn-quiet px-2.5 py-1 rounded text-[12px] text-[var(--bad)]">Delete</button>
+        </span>
+      </div>
+      <div data-file-editor style="display:none" class="border-t hairline-soft p-3">
+        <textarea id="${p.id}" name="${p.name}" rows="6" placeholder="Paste new contents…" class="${FIELD_BASE} mono text-[12.5px] leading-relaxed mt-0"></textarea>
+        <div class="mt-2 flex justify-end">
+          <button type="button" data-file-action="cancel" class="btn-quiet px-2.5 py-1 rounded text-[12px]">Cancel</button>
+        </div>
+      </div>
+      <!-- name attribute set by JS on click of Delete -->
+      <input type="hidden" data-file-delete-flag value="${p.name}" />
+    </div>`;
+}
+
+export function modulePage(mod: Module, credValues: Record<string, MaskedValue>) {
   const fm = mod.frontmatter;
   const s = statusMeta[mod.credentialsFilled];
   const skillHtml = marked.parse(mod.body, { async: false }) as string;

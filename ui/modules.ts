@@ -4,6 +4,9 @@
  * Frontmatter parsing is intentionally lenient — `trove validate` is the strict
  * gate; the UI should still render a partially malformed module so the user can
  * spot what's wrong.
+ *
+ * Credential read/write disk operations are factored out into ./credentials.ts
+ * (SPEC §2.2 + §2.3 are implemented there).
  */
 
 import { parse as parseYaml } from "yaml";
@@ -12,19 +15,34 @@ import { resolve, basename, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 
-const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
+import {
+  fieldStatuses,
+  isFileField,
+  readMasked,
+  writeSubmitted,
+  type MaskedValue,
+  type WriteSubmission,
+} from "./credentials";
+
+export const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
 
 export const TROVE_HOME = resolve(homedir(), ".trove");
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const LIBRARY_DIR = resolve(REPO_ROOT, "library");
 
+export type FileFormat = "json" | "yaml" | "ini" | "pem" | "ssh-private-key" | "x509" | "raw";
+
 export interface CredentialField {
-  type?: "text" | "password" | "url" | "select" | "boolean" | "number" | "multiline";
+  type?: "text" | "password" | "url" | "select" | "boolean" | "number" | "multiline" | "file";
   required?: boolean;
   default?: unknown;
   options?: string[];
   help?: string;
+  /** Only meaningful when `type: file`. */
+  file_format?: FileFormat;
+  /** Only meaningful when `type: file`. POSIX mode (octal number or octal-prefixed string). */
+  file_mode?: number | string;
 }
 
 export interface Frontmatter {
@@ -52,7 +70,7 @@ export interface Module {
   credentialsFilled: "complete" | "partial" | "missing" | "n/a";
 }
 
-async function readModuleMd(dir: string): Promise<{ fm: Frontmatter; body: string; error?: string }> {
+export async function readModuleMd(dir: string): Promise<{ fm: Frontmatter; body: string; error?: string }> {
   const raw = await readFile(resolve(dir, "module.md"), "utf8");
   const m = raw.match(FRONTMATTER_RE);
   if (!m) return { fm: {}, body: raw, error: "no YAML frontmatter" };
@@ -75,25 +93,12 @@ async function fileExists(p: string): Promise<boolean> {
 
 async function credStatus(dir: string, fm: Frontmatter): Promise<Module["credentialsFilled"]> {
   if (!fm.credentials || Object.keys(fm.credentials).length === 0) return "n/a";
-
-  // SPEC §2.2: fields with `default:` or `required: false` don't need to appear
-  // in credentials.json. If every field is such, the module is ready out of the box.
-  const requiredKeys = Object.entries(fm.credentials)
-    .filter(([, decl]) => !("default" in decl) && decl.required !== false)
-    .map(([k]) => k);
-  if (requiredKeys.length === 0) return "complete";
-
-  const credPath = resolve(dir, "credentials.json");
-  let cred: Record<string, unknown> = {};
-  if (await fileExists(credPath)) {
-    try {
-      cred = JSON.parse(await readFile(credPath, "utf8"));
-    } catch {}
-  }
-
-  const present = requiredKeys.filter((k) => cred[k] !== undefined && cred[k] !== "");
-  if (present.length === 0) return "missing";
-  if (present.length < requiredKeys.length) return "partial";
+  const statuses = await fieldStatuses(dir, fm);
+  const required = Object.values(statuses).filter((s) => s !== "n/a");
+  if (required.length === 0) return "complete";
+  const present = required.filter((s) => s === "present").length;
+  if (present === 0) return "missing";
+  if (present < required.length) return "partial";
   return "complete";
 }
 
@@ -111,7 +116,7 @@ async function loadModule(dir: string, source: Module["source"]): Promise<Module
   };
 }
 
-async function listDirs(root: string): Promise<string[]> {
+export async function listDirs(root: string): Promise<string[]> {
   try {
     const entries = await readdir(root, { withFileTypes: true });
     return entries
@@ -145,66 +150,19 @@ export async function getLibraryItem(name: string): Promise<Module | null> {
   return loadModule(dir, "library");
 }
 
-/**
- * GET returns values masked: password fields → "••••••••" if set, "" if unset.
- * Non-password fields return as-is so users can see what's there.
- */
-export async function readCredentialsMasked(
-  mod: Module,
-): Promise<Record<string, string>> {
+/** GET form values for the Web UI — see `credentials.ts` for shape. */
+export async function readCredentialsMasked(mod: Module): Promise<Record<string, MaskedValue>> {
   if (!mod.frontmatter.credentials) return {};
-  const credPath = resolve(mod.dir, "credentials.json");
-  let cred: Record<string, unknown> = {};
-  if (await fileExists(credPath)) {
-    try {
-      cred = JSON.parse(await readFile(credPath, "utf8"));
-    } catch {}
-  }
-  const out: Record<string, string> = {};
-  for (const [key, decl] of Object.entries(mod.frontmatter.credentials)) {
-    const v = cred[key];
-    if (v === undefined || v === null || v === "") {
-      out[key] = "";
-    } else if (decl.type === "password") {
-      out[key] = "••••••••";
-    } else {
-      out[key] = String(v);
-    }
-  }
-  return out;
+  return readMasked(mod.dir, mod.frontmatter);
 }
 
-/**
- * Overwrite credentials.json with the submitted values.
- * The "••••••••" sentinel means "leave the existing value untouched" — used so
- * a partial form submit doesn't blow away unchanged password fields.
- */
-export async function writeCredentials(
-  mod: Module,
-  submitted: Record<string, string>,
-): Promise<void> {
-  const credPath = resolve(mod.dir, "credentials.json");
-  let existing: Record<string, unknown> = {};
-  if (await fileExists(credPath)) {
-    try {
-      existing = JSON.parse(await readFile(credPath, "utf8"));
-    } catch {}
-  }
-  const merged = { ...existing };
-  const spec = mod.frontmatter.credentials ?? {};
-  for (const key of Object.keys(spec)) {
-    const v = submitted[key];
-    if (v === undefined) continue;
-    if (v === "••••••••") continue;
-    if (v === "") {
-      delete merged[key];
-    } else {
-      merged[key] = v;
-    }
-  }
-  await mkdir(dirname(credPath), { recursive: true });
-  await writeFile(credPath, JSON.stringify(merged, null, 2) + "\n", { mode: 0o600 });
+/** Persist submitted form values for the Web UI — see `credentials.ts`. */
+export async function writeCredentials(mod: Module, submission: WriteSubmission): Promise<void> {
+  await writeSubmitted(mod.dir, mod.frontmatter, submission);
 }
+
+export { isFileField };
+export type { MaskedValue, WriteSubmission };
 
 /**
  * Copy a library module to ~/.trove/<name>/module.md (credentials.json is

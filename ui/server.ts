@@ -81,17 +81,24 @@ app.get("/library/:name", async (c) => {
 app.patch("/api/m/:name/cred", async (c) => {
   const mod = await getInstalledModule(c.req.param("name"));
   if (!mod) return c.text("module not found", 404);
-  const form = await c.req.parseBody();
-  const submitted: Record<string, string> = {};
-  for (const [k, v] of Object.entries(form)) {
-    if (typeof v === "string") submitted[k] = v;
+  const form = await c.req.parseBody({ all: true });
+  const values: Record<string, string> = {};
+  const deletes: string[] = [];
+  for (const [k, raw] of Object.entries(form)) {
+    if (k === "__delete") {
+      const arr = Array.isArray(raw) ? raw : [raw];
+      for (const v of arr) if (typeof v === "string" && v.length > 0) deletes.push(v);
+      continue;
+    }
+    const v = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof v === "string") values[k] = v;
   }
-  await writeCredentials(mod, submitted);
+  await writeCredentials(mod, { values, deletes });
   const fresh = (await getInstalledModule(mod.name))!;
-  const values = await readCredentialsMasked(fresh);
+  const masked = await readCredentialsMasked(fresh);
   // HTMX swaps the form in place; the OOB badge update refreshes the header
   // badge at the same time.
-  return c.html(html`${credentialsForm(fresh, values)}${credentialsBadgeOOB(fresh)}`);
+  return c.html(html`${credentialsForm(fresh, masked)}${credentialsBadgeOOB(fresh)}`);
 });
 
 app.post("/api/install", async (c) => {
