@@ -1,63 +1,63 @@
 # Trove v0.1 Spec
 
-**Status**: Draft (revised 2026-05-11, AI-native pivot)
-**Goal**: 一个**只是格式规范 + Web UI**的本地资源中心。**AI 是 runtime**——读取、决策、配置都由 AI 完成，Trove 不做编译/注入/解析。
+**Status**: Draft (revised 2026-05-11, AI-native pivot; §0–§4 English translation 2026-05-14)
+**Goal**: A local resource hub that is **format spec + Web UI, nothing else**. **AI is the runtime** — reading, deciding, configuring all happen inside AI. Trove does no compile / inject / parse step.
 
 ---
 
-## 0. 核心原则
+## 0. Core Principles
 
-1. **AI 是 runtime**：所有资源的「使用」由 AI 在对话中决定。Trove 不写 inject/init 之类编译工具——AI 自己读 `~/.trove/`、自己拼 header、自己改 CLAUDE.md。
-2. **格式规范 + Web UI = 全部**：除此之外都是 over-engineering。
-3. **手工友好**：纯文本（YAML + Markdown + JSON），无任何工具也能编辑/读懂。
-4. **零依赖启动**：v0.1 阶段不写 CLI 也能用——AI 直接读约定好的目录就行。
-5. **AI 自助**：用 AI 帮 AI 准备资源——降低创建/维护 module 的门槛。
-6. **渐进加密**：v0.1 凭证明文 + 600 权限，v0.2 接入 Keychain。
+1. **AI is the runtime**: how every resource is used is decided by AI in conversation. Trove does not ship inject/init compilers — AI reads `~/.trove/`, drafts its own header, edits CLAUDE.md.
+2. **Format spec + Web UI = everything**: anything beyond is over-engineering.
+3. **Hand-friendly**: plain text (YAML + Markdown + JSON); editable and readable without any tooling.
+4. **Zero-dependency start**: v0.1 needs no CLI to be useful — AI just reads the agreed-upon directory.
+5. **AI helps itself**: use AI to prepare resources for AI — lowering the bar to create and maintain modules.
+6. **Progressive encryption**: v0.1 plaintext + 600 perms; v0.2 Keychain backend.
 
 ---
 
-## 1. 目录结构
+## 1. Directory Layout
 
-**只有一个层级：设备级 `~/.trove/`，所有项目共享。**
+**Only one level: machine-wide `~/.trove/`, shared by all projects.**
 
 ```
 ~/.trove/
-├── config.json              # Trove 全局设置（Web UI 端口、AI Authoring 用哪个 LLM 等）
-├── minimax/                 # 一个 module = 一个目录
-│   ├── module.md            # 模板 + skill 内容（可 git）
-│   └── credentials.json     # 凭证值（gitignored，v0.2 Keychain backend）
+├── config.json              # Trove global settings (Web UI port, which LLM AI Authoring uses, etc.)
+├── minimax/                 # one module = one directory
+│   ├── module.md            # template + skill content (git-friendly)
+│   └── credentials.json     # credential values (gitignored, v0.2 Keychain backend)
 ├── cloudflare/
 │   ├── module.md
 │   └── credentials.json
 └── ...
 ```
 
-**约定**：
-- 目录名 = module 名（小写、连字符）
-- 目录内**只有两个文件**：`module.md`（必需）+ `credentials.json`（如有凭证）
-- 文件名是固定字面量
-- 项目通过 CLAUDE.md / AGENTS.md 直接引用全局路径，**不**在项目里建 `.trove/` 子目录
+**Conventions**:
+- Directory name = module name (lowercase, hyphenated)
+- Each directory contains **only two files**: `module.md` (required) + `credentials.json` (if any credentials)
+- Filenames are fixed literals
+- Projects reference the global path directly from CLAUDE.md / AGENTS.md; **do not** create a per-project `.trove/` subdirectory
 
-**为什么没有项目级目录**：Trove 的核心价值是跨项目共享（一份 minimax key、N 个项目用）。引入项目级 override 反而稀释了这个价值，且增加心智负担。
+**Why no per-project directory**: Trove's core value is cross-project sharing (one minimax key, N projects using it). Introducing per-project overrides dilutes that value and adds cognitive load.
 
-### 多账号 / 多环境怎么办
+### Multi-account / multi-environment
 
-**答：建多个独立命名的 module，不做 override 系统。**
+**Answer: create multiple independently-named modules; no override system.**
 
-举例：你有两个 Cloudflare 账号（个人 + 公司），就建：
+Example: you have two Cloudflare accounts (personal + company) — create:
 ```
 ~/.trove/cloudflare-personal/
 ~/.trove/cloudflare-business/
 ```
-项目 A 的 CLAUDE.md 引用 `cloudflare-personal`，项目 B 引用 `cloudflare-business`。**显式、扁平、零歧义**——比 override 系统简单 10 倍，且 AI 看到名字就知道选哪个。
+Project A's CLAUDE.md references `cloudflare-personal`; project B references `cloudflare-business`. **Explicit, flat, zero ambiguity** — 10x simpler than an override system, and AI picks the right one from the name alone.
 
 ---
 
-## 2. Module 文件格式
+## 2. Module File Format
 
 ### 2.1 `module.md`
 
-YAML frontmatter 定义元数据 + schema + 配置；正文是 skill。
+YAML frontmatter defines metadata + schema + config; the body is the skill.
 
 ```markdown
 ---
@@ -74,14 +74,14 @@ credentials:
   MINIMAX_API_KEY:
     type: password
     required: true
-    help: "https://platform.minimax.io/user-center 获取"
+    help: "Get it from https://platform.minimax.io/user-center"
   MINIMAX_REGION:
     type: select
     options: [china, global]
     default: china
-    help: "国内 key 用 api.minimaxi.com，国际 key 用 api.minimax.io，混用报错"
+    help: "China keys use api.minimaxi.com; global keys use api.minimax.io; mixing them errors out"
 
-mcp:                          # 可选；详见下文「mcp: 字段（两种 sub-schema）」
+mcp:                          # optional; see "mcp: field (two sub-schemas)" below
   type: stdio
   command: npx
   args: ["-y", "@minimax/mcp-server"]
@@ -89,61 +89,61 @@ mcp:                          # 可选；详见下文「mcp: 字段（两种 sub
     MINIMAX_API_KEY: ${credential.MINIMAX_API_KEY}
 ---
 
-# MiniMax API 使用指南
+# MiniMax API Guide
 
-## 关键约束（先看反例）
+## Critical Constraints (anti-patterns first)
 ...
 
-## 文生图
+## Text-to-image
 ...
 
-## 计费陷阱
+## Billing pitfalls
 ...
 ```
 
-**frontmatter 字段**：
-- 必需：`name` / `version` / `trove_spec`
-- 推荐：`category` / `description` / `applies_to` / `last_verified`
-- 可选：`homepage` / `tags` / `credentials` / `mcp`
+**Frontmatter fields**:
+- Required: `name` / `version` / `trove_spec`
+- Recommended: `category` / `description` / `applies_to` / `last_verified`
+- Optional: `homepage` / `tags` / `credentials` / `mcp`
 
-**字段类型**（用在 credentials 里）：`text` / `password` / `url` / `select` / `boolean` / `number` / `multiline`
+**Field types** (used inside `credentials`): `text` / `password` / `url` / `select` / `boolean` / `number` / `multiline`
 
-**`last_verified` 字段**（release-quality gate）：
+**`last_verified` field** (release-quality gate):
 
-格式：`"YYYY-MM-DD · <method summary>"`，自由文本一行。**该字段就是 module 的发布质量门**——repo 的 `library/` 里出现的 module 必须在 README/Web UI 里被外人看见时是"维护者亲自跑通过"的，否则就是误导。
+Format: `"YYYY-MM-DD · <method summary>"`, free-text one-liner. **This field is the module's publication-quality gate** — anything that appears in the repo's `library/` and is surfaced to outsiders via README / Web UI must have been verified by the maintainer in person, otherwise it is misleading.
 
-样例：
+Examples:
 - `last_verified: "2026-05-12 · flux/schnell real image generated via fal-ai"`
 - `last_verified: "2026-05-12 · JWT signed + contract OK; account out of credits — no live gen"`
 - `last_verified: "pending — refresh token expired, awaiting OAuth re-auth"`
 - `last_verified: "production · used daily by maintainer's downstream project"`
 
-写法约定：
-1. 凡是经过真实 API/MCP 调用并拿到合理响应 → 写日期 + 一行 method（"image gen E2E"、"oauth + GAQL read"）
-2. 凡是因 billing/quota/scope 阻断但 auth+contract 已验证 → 写日期 + "contract OK / runtime blocked"
-3. 凡是 credential 当前坏 / 没 key → 写 `pending — <reason>`
-4. 凡是有持续生产证据但本会话未 smoke → 写 `production · <evidence>`
+Writing conventions:
+1. Real API/MCP call returned a sane response → write date + one-line method ("image gen E2E", "oauth + GAQL read")
+2. Auth + contract pass but runtime blocked by billing/quota/scope → write date + "contract OK / runtime blocked"
+3. Credential currently broken / no key → write `pending — <reason>`
+4. Sustained production evidence but no fresh smoke in this session → write `production · <evidence>`
 
-**字段不强制**（SPEC §2.1 `last_verified` 是推荐字段不是必需）；但 `trove validate` 会对缺失字段 emit warning，UI 在卡片上会显示「unverified」灰章。
+**The field is not mandatory** (SPEC §2.1 marks `last_verified` recommended, not required), but `trove validate` emits a warning when missing, and the UI renders an "unverified" gray badge on the card.
 
 ---
 
-**`mcp:` 字段（两种 sub-schema）**
+**`mcp:` field (two sub-schemas)**
 
-实战形态有两种 MCP transport，`mcp.type` 必须显式声明其一。两种 schema 互斥——同一 module 一次只声一种 transport（多数 server 也只支持一种）。
+Two MCP transports appear in practice; `mcp.type` must declare one explicitly. The two schemas are mutually exclusive — a module declares only one transport at a time (most servers also only support one).
 
-**`type: stdio`** — 本地子进程，agent 通过 stdin/stdout 通信。npm / pypi 发布的 MCP server 多用此形态。
+**`type: stdio`** — local subprocess; the agent talks to it over stdin/stdout. MCP servers published to npm / pypi most often use this shape.
 
 ```yaml
 mcp:
   type: stdio
-  command: npx                  # 或 pipx / uvx / deno / node / 自定义二进制
+  command: npx                  # or pipx / uvx / deno / node / a custom binary
   args: ["-y", "@resend/mcp-send-email"]
-  env:                          # 可选；只列 server 实际读的 env keys
+  env:                          # optional; list only env keys the server actually reads
     RESEND_API_KEY: ${credential.RESEND_API_KEY}
 ```
 
-**`type: http`** — 远端托管 server，无需本地安装。鉴权常走 OAuth-on-first-use 由 agent 自己完成（不写在 module）。
+**`type: http`** — remotely-hosted server; no local install. Auth typically runs through OAuth-on-first-use handled by the agent itself (not declared in the module).
 
 ```yaml
 mcp:
@@ -151,43 +151,43 @@ mcp:
   url: https://mcp.stripe.com
 ```
 
-**字段语义**：
+**Field semantics**:
 
 | field | applies to | meaning |
 |---|---|---|
-| `type` | stdio / http | **必需**（v0.1 spec 内为新增，可缺省，但 `trove validate` 会 warn 让迁移） |
-| `command` | stdio | 启动命令（`npx` / `pipx` / `uvx` / `deno` / abs path） |
-| `args` | stdio | 命令行参数数组，**绝不在此放 secret**（见反模式 #1） |
-| `env` | stdio | server 进程的环境变量，**secret 必须 `${credential.X}` 引用**而不是字面值 |
-| `url` | http | MCP server 的 HTTP endpoint |
+| `type` | stdio / http | **required** (new in this revision; may be omitted, but `trove validate` warns to prompt migration) |
+| `command` | stdio | launch command (`npx` / `pipx` / `uvx` / `deno` / absolute path) |
+| `args` | stdio | command-line argument array; **never put secrets here** (see anti-pattern #1) |
+| `env` | stdio | the server process's environment; **secrets must be referenced via `${credential.X}`**, not literals |
+| `url` | http | the MCP server's HTTP endpoint |
 
-**substitution 语法**：`${credential.KEY_NAME}` 在 `env:` / `args:` / `url:` 里都合法，install 时由 agent / Web UI 替换。**语义按字段类型分发**：
+**Substitution syntax**: `${credential.KEY_NAME}` is legal inside `env:` / `args:` / `url:`; the agent / Web UI substitutes at install time. **Semantics dispatch by field type**:
 
-- string 系（`text` / `password` / `url` / `multiline` 等）→ 替换为 `credentials.json` 里的字面值
-- file 系（`type: file`）→ 替换为该字段对应文件的**绝对路径**（见 §2.3）
+- string family (`text` / `password` / `url` / `multiline` etc.) → replaced with the literal value from `credentials.json`
+- file family (`type: file`) → replaced with the **absolute path** to the corresponding file (see §2.3)
 
-字面字符串无需替换。注意 `url:` 里多用于 query string（如 `?project_ref=${credential.PROJECT_REF}`）而非 host——host 应该是稳定的官方 endpoint。
+Literal strings need no substitution. Inside `url:` the substitution mostly appears in the query string (e.g. `?project_ref=${credential.PROJECT_REF}`), not in the host — the host should be a stable official endpoint.
 
-**当 server 同时支持两种 transport** → 优先 `type: http`（零安装、不锁本机环境）。如对方还提供 stdio，可在 skill body 注明备用方式，但 frontmatter 只声 http。
+**When a server supports both transports** → prefer `type: http` (zero install, doesn't pin the local environment). If the same server also offers stdio, mention the fallback in the skill body, but the frontmatter declares only http.
 
-**反模式**（来自 SPEC §10 dogfood 沉淀）：
+**Anti-patterns** (distilled from SPEC §10 dogfooding):
 
-1. ❌ **secret 进 `args:` 字面值**（如 lark-mcp 老版的 `["--app-secret", "sk_..."]`）—— secret 必须存在 `credentials.json` 并通过 `${credential.X}` 在 `env:` 里引用。若 server 设计上只接受 secret 当 CLI 参数,要么换 CLI/SDK 形态、要么用 stdin-based flag。
-2. ❌ **`env:` 里写硬编码绝对路径**（`GOOGLE_APPLICATION_CREDENTIALS: /Users/zephyr/.../foo.json`）—— 跨机器迁移即坏。文件型凭证的正式机制是 `type: file`（见 §2.3）：声明字段类型为 file，substitution `${credential.X}` 返回 trove 维护的稳定文件路径。
-3. ❌ **`mcp:` 块缺 `type:`**（legacy 形态）—— 解释为 `type: stdio` 但 validate warn。每次写新 module 必须显式写 `type:`。
+1. ❌ **Secrets as literals inside `args:`** (e.g. the old lark-mcp's `["--app-secret", "sk_..."]`) — secrets must live in `credentials.json` and be referenced via `${credential.X}` from inside `env:`. If a server only accepts the secret as a CLI argument, either switch to a CLI/SDK shape, or use a stdin-based flag.
+2. ❌ **Hardcoded absolute paths inside `env:`** (`GOOGLE_APPLICATION_CREDENTIALS: /Users/zephyr/.../foo.json`) — breaks the moment you change machines. The formal mechanism for file credentials is `type: file` (see §2.3): declare the field as a file, and `${credential.X}` substitution returns a Trove-managed stable file path.
+3. ❌ **`mcp:` block missing `type:`** (legacy shape) — interpreted as `type: stdio` but validate warns. Every new module must declare `type:` explicitly.
 
-**何处真正安装**：见 §3「MCP 配置」—— AI 把这个 block merge 到 agent 的 MCP config（`~/.claude.json` 的 `mcpServers`、`~/.cursor/mcp.json` 等）。Trove 不主动安装，只提供声明。
+**Where install actually happens**: see §3 "MCP configuration" — AI merges this block into the agent's MCP config (`~/.claude.json`'s `mcpServers`, `~/.cursor/mcp.json`, etc.). Trove does not install; it only declares.
 
 ---
 
-**skill 正文写作要点**（产品成败命门）：
-1. **以反例/易错点开头**而不是 happy path
-2. 真实代码片段，不要伪代码
-3. 计费/限流/错误码单独章节
+**Skill body writing principles** (make-or-break for the product):
+1. **Open with anti-patterns / pitfalls**, not the happy path
+2. Real code snippets, not pseudocode
+3. Dedicated sections for billing / rate limits / error codes
 
 ### 2.2 `credentials.json`
 
-只存 frontmatter `credentials` 里声明字段的实际值：
+Stores only the actual values of the fields declared in the frontmatter `credentials`:
 
 ```json
 {
@@ -196,81 +196,81 @@ mcp:
 }
 ```
 
-**哪些字段必须出现在 credentials.json**：
-- 字段在 frontmatter 既无 `default:` 又非 `required: false` → **必须**列出
-- 字段有 `default:` → **可选**（缺省时 default 生效）
-- 字段标 `required: false` → **可选**
-- 整个 module 所有字段都有 default → credentials.json 文件本身可省略
+**Which fields must appear in credentials.json**:
+- Field has no `default:` and is not `required: false` → **must** be listed
+- Field has a `default:` → **optional** (default applies if absent)
+- Field marked `required: false` → **optional**
+- All fields in the module have defaults → the credentials.json file itself can be omitted
 
-例如 `github-account` 类 module（多账号场景下用 `github-personal` / `github-work` 别名）所有 identity 字段都是公开信息且有 default，credentials.json 只需 `{}` 或不存在。
+For example, a `github-account` style module (with `github-personal` / `github-work` aliases for multi-account use) has all identity fields as public info with defaults; credentials.json can be `{}` or absent.
 
-- **v0.1**：明文 + 文件权限 600 + `.gitignore` 规则 `**/credentials.json`
-- **v0.2**：可选 macOS Keychain / Windows Credential Manager backend
+- **v0.1**: plaintext + file perms 600 + `.gitignore` rule `**/credentials.json`
+- **v0.2**: optional macOS Keychain / Windows Credential Manager backend
 
-**录入方式**：
-- **首选 Web UI**（`trove ui` → Configure 按钮）—— 字段自动校验、AI 引导式录入、test connection 一键验证。**这是 v0.2 的一等公民流程**，CLI 直接编辑文件是 fallback
-- **CLI fallback**（`$EDITOR ~/.trove/<svc>/credentials.json`）—— 急用、无 Web UI 启动时使用。但承担明文暴露在终端历史、截屏、远程协作时同事看到的风险
-- **绝不**：在 shell 里 `echo "KEY=xxx" > file`（命令历史里就是明文）
+**Input methods**:
+- **Web UI first** (`trove ui` → Configure button) — automatic field validation, AI-guided entry, one-click test connection. **This is the first-class flow in v0.2**; editing files via the CLI is the fallback
+- **CLI fallback** (`$EDITOR ~/.trove/<svc>/credentials.json`) — for emergencies, when the Web UI isn't running. Carries the risk of plaintext exposure via shell history, screen captures, or pair-programming surfaces
+- **Never**: `echo "KEY=xxx" > file` in a shell (the literal lands in command history)
 
 ---
 
-### 2.3 文件型凭证（`type: file`）
+### 2.3 File-type credentials (`type: file`)
 
-某些服务的凭证天生是**文件**，不是字符串 —— 把它们硬塞 `credentials.json` 的 string 字段意味着用转义把多行 JSON / PEM block / SSH key 压成一行，违反 §0「手工友好」原则，也无法满足 SDK / MCP server 要求"给我一个文件路径"的接口。`type: file` 是这个张力的一等公民答案。
+Some services have credentials that are **files** by nature, not strings — cramming them into `credentials.json` string fields means escaping multi-line JSON / PEM blocks / SSH keys onto a single line, which violates the §0 "hand-friendly" principle and also fails to satisfy SDK / MCP server interfaces that expect "give me a file path". `type: file` is the first-class answer to that tension.
 
-**适用场景**（什么时候用 file，什么时候用 string）：
-- 用 `type: file`：GCP service account JSON、SSH private key、x509 cert/key、kubeconfig、`~/.aws/credentials` 这类文件、GPG keyring、p12 签名包
-- 用 string 系：API token / bearer / webhook secret / API base URL / 用户名 等单值
+**When to use file vs string**:
+- Use `type: file`: GCP service account JSON, SSH private keys, x509 cert/key, kubeconfig, `~/.aws/credentials`-style files, GPG keyrings, p12 signing bundles
+- Use the string family: API token / bearer / webhook secret / API base URL / username — single-value scalars
 
-**判定原则**：如果服务的 SDK / CLI / MCP server 接口接收**文件路径**（`GOOGLE_APPLICATION_CREDENTIALS=/path/...`、`ssh -i <path>`、`--cert <path>`）→ file；如果接收**值本身**（`Authorization: Bearer <value>`、`-H "X-API-Key: <value>"`）→ string。
+**Decision rule**: if the service's SDK / CLI / MCP server expects a **file path** (`GOOGLE_APPLICATION_CREDENTIALS=/path/...`, `ssh -i <path>`, `--cert <path>`) → file; if it expects the **value itself** (`Authorization: Bearer <value>`, `-H "X-API-Key: <value>"`) → string.
 
 #### 2.3.1 Schema
 
-frontmatter 中声明：
+Declared in the frontmatter:
 
 ```yaml
 credentials:
   GOOGLE_SA_JSON:
     type: file
-    file_format: json          # 可选；UI 据此校验格式 + 选 syntax highlight
-    file_mode: "0600"          # 可选；默认 "0600"，要更严的用 "0400"
+    file_format: json          # optional; UI uses this for format validation + syntax highlighting
+    file_mode: "0600"          # optional; default "0600"; use "0400" for stricter
     required: true
     help: "console.cloud.google.com → IAM → Service Accounts → Keys → Add Key (JSON)"
 ```
 
-支持的 `file_format` 值（v0.1）：`json` / `yaml` / `ini` / `pem` / `ssh-private-key` / `x509` / `raw`（默认）。仅作校验和扩展名线索，不改变存储方式 —— 文件内容按原始字节落盘。
+Supported `file_format` values (v0.1): `json` / `yaml` / `ini` / `pem` / `ssh-private-key` / `x509` / `raw` (default). Used only for validation and extension hints — it does not affect storage; content is written to disk byte-for-byte.
 
-#### 2.3.2 存储约定
+#### 2.3.2 Storage convention
 
-文件型凭证**不出现在 `credentials.json`**。它们以真文件形式存放在模块目录下的 `files/` 子目录：
+File credentials **do not appear in `credentials.json`**. They live as real files inside a `files/` subdirectory of the module:
 
 ```
 ~/.trove/google-analytics/
 ├── module.md
-├── credentials.json              # 只装 string-typed 字段（如 GA4_PROPERTY_ID）
+├── credentials.json              # only string-typed fields (e.g. GA4_PROPERTY_ID)
 └── files/
-    └── GOOGLE_SA_JSON.json       # 文件名 = 凭证 key + .<file_format>
+    └── GOOGLE_SA_JSON.json       # filename = credential key + .<file_format>
 ```
 
-- **文件名约定**：`<KEY><.file_format?>`。若 `file_format` 是 `raw` 或缺省 → 不带后缀；否则用 format 名作为扩展（`.json` / `.yaml` / `.ini` / `.pem` 等）。代码里始终**正向生成**（key + format → filename），无需反向解析
-- **`files/` 目录权限 `0700`**（仅当前用户可进入）
-- **每文件权限 `file_mode`**（默认 `0600`，目录内 `umask 077` 创建）
-- `.gitignore` 规则：`**/credentials.json` + `**/files/`（v0.1 同时维护两条）
+- **Filename convention**: `<KEY><.file_format?>`. If `file_format` is `raw` or absent → no suffix; otherwise the format name becomes the extension (`.json` / `.yaml` / `.ini` / `.pem` etc.). Code always **generates forward** (key + format → filename); no reverse parsing required
+- **`files/` directory mode `0700`** (only the owner can enter)
+- **Each file's mode is `file_mode`** (default `0600`; created with `umask 077` inside the directory)
+- `.gitignore` rules: `**/credentials.json` + `**/files/` (v0.1 keeps both)
 
-#### 2.3.3 `${credential.X}` 替换语义
+#### 2.3.3 `${credential.X}` substitution semantics
 
-substitution 行为**按字段类型分发**：
+Substitution **dispatches by field type**:
 
-| 字段 `type` | `${credential.X}` 替换为 |
+| field `type` | `${credential.X}` becomes |
 |---|---|
-| `text` / `password` / `url` / `select` / `boolean` / `number` / `multiline` | `credentials.json` 里该字段的字面值 |
-| `file` | `~/.trove/<module>/files/<X>` 的**绝对路径**字符串（不是文件内容） |
+| `text` / `password` / `url` / `select` / `boolean` / `number` / `multiline` | the literal value in `credentials.json` |
+| `file` | the **absolute path** to `~/.trove/<module>/files/<X>` (not the file contents) |
 
-显式访问器（避免歧义场景使用）：
-- `${credential.X.path}` —— 同 `${credential.X}` 对 file 类型，强调返回路径
-- `${credential.X.contents}` —— 返回文件原始内容（escape hatch；MCP `env:` 几乎不该用，少数 SDK 接受 inline blob 时可用）
+Explicit accessors (use them in ambiguous contexts):
+- `${credential.X.path}` — same as `${credential.X}` for file types; emphasizes the path return
+- `${credential.X.contents}` — returns the raw file contents (escape hatch; almost never appropriate inside MCP `env:`; usable when an SDK accepts an inline blob)
 
-**典型用法**（google-analytics 的 `mcp:` 段）：
+**Typical usage** (google-analytics's `mcp:` block):
 
 ```yaml
 mcp:
@@ -278,29 +278,29 @@ mcp:
   command: pipx
   args: ["run", "google-analytics-mcp"]
   env:
-    GOOGLE_APPLICATION_CREDENTIALS: ${credential.GOOGLE_SA_JSON}    # → 路径，正是 SDK 想要的
-    GA4_PROPERTY_ID: ${credential.GA4_PROPERTY_ID}                  # → 字面值
+    GOOGLE_APPLICATION_CREDENTIALS: ${credential.GOOGLE_SA_JSON}    # → path, exactly what the SDK wants
+    GA4_PROPERTY_ID: ${credential.GA4_PROPERTY_ID}                  # → literal value
 ```
 
-#### 2.3.4 校验（`trove validate` 行为）
+#### 2.3.4 Validation (`trove validate` behavior)
 
-对每个 `type: file` 字段：
-1. 检查 `~/.trove/<module>/files/<KEY>.<file_format?>` 存在（按 schema 约定的路径计算）
-2. 检查文件大小 > 0
-3. 检查文件 mode 等于 `file_mode`（默认 `0600`）—— 不等则 warn 且建议 `chmod`
-4. 若声明了 `file_format`：粗校验内容（json → `JSON.parse`、pem → 含 `-----BEGIN ` 头、yaml → YAML.parse）—— 失败仅 warn，不 error
-5. 检查 `credentials.json` 里**没有**重复出现该 key（迁移残留检测；旧 `multiline` 字符串没清掉）
+For each `type: file` field:
+1. Check that `~/.trove/<module>/files/<KEY>.<file_format?>` exists (path derived from the schema convention)
+2. Check the file size is > 0
+3. Check the file mode equals `file_mode` (default `0600`) — if not, warn and suggest `chmod`
+4. If `file_format` is declared: light content validation (json → `JSON.parse`, pem → contains `-----BEGIN ` header, yaml → YAML.parse) — failure warns but does not error
+5. Check that `credentials.json` does **not** contain the same key (migration-leftover detection; the old `multiline` string was not cleared)
 
-对 string 字段：保持现有逻辑。
+For string fields: existing logic is unchanged.
 
-#### 2.3.5 Web UI 表单
+#### 2.3.5 Web UI form
 
-`type: file` 字段在 form 里有两种输入方式：
+`type: file` fields offer two input methods inside the form:
 
-1. **粘贴**（默认）—— 文本域，接住 `cmd-V` 多行内容。提交时写盘
-2. **上传**（可选）—— `<input type="file">`，仅本地浏览器读取（不经服务器中转），同样写盘
+1. **Paste** (default) — a textarea that accepts `cmd-V` multi-line content. Written to disk on submit
+2. **Upload** (optional) — `<input type="file">`, read locally in-browser (not relayed through the server), also written to disk
 
-GET 时**永不返回文件内容**。返回元信息：
+GET **never returns file contents**. It returns metadata:
 
 ```json
 {
@@ -314,133 +314,133 @@ GET 时**永不返回文件内容**。返回元信息：
 }
 ```
 
-PATCH 提交语义：**file 字段未出现在 PATCH payload 中 = 不动**。要修改才在 payload 里带值。删除走显式 `__delete: <KEY>` flag。比起 string 字段那种"`••••••••` 哨兵字符串等于不改"的 in-band 约定更干净（file 没有等价的视觉占位）。
+PATCH semantics: **a file field omitted from the PATCH payload = leave it alone**. To modify, include a value. Deletion uses an explicit `__delete: <KEY>` flag. Cleaner than the in-band string-field convention of "`••••••••` sentinel string means no change" (files have no equivalent visual placeholder).
 
-**SPEC 不规定 reveal/隐藏 UI 控件形态** —— 但**`GET API 永不返内容`是硬约束**（防 SSRF / 日志泄漏 / 截屏意外）。是否提供 password 眼睛 toggle、file 的 "Show contents" 折叠块，由 UI 实现决定。
+**SPEC does not mandate reveal/hide UI controls** — but **"the GET API never returns contents" is a hard constraint** (defends against SSRF / log leakage / accidental screen captures). Whether the UI offers a password eye-toggle, or a "Show contents" collapsible block for files, is left to the implementation.
 
-#### 2.3.6 从 `type: multiline` 迁移
+#### 2.3.6 Migration from `type: multiline`
 
-存量模块（如旧版 `google-analytics` 把 SA JSON 塞 `multiline` 字符串）的迁移：
+Migrating existing modules (e.g. the old `google-analytics` that stuffed an SA JSON into a `multiline` string):
 
-1. 模块 frontmatter 改 `type: multiline` → `type: file` + `file_format: json`
-2. 用户跑 `trove migrate <module>`（独立子命令，与只读的 `trove validate` 分开 —— validate 必须保持 read-only）：
-   - 读 `credentials.json` 里该 key 的字符串值
-   - 写到 `files/<KEY>.<format>`，mode `0600`
-   - 从 `credentials.json` 删除该 key
-   - 打印迁移摘要
-3. 验证：再跑 `trove validate <module>`，应当 0 error 0 warn
+1. Change the module frontmatter from `type: multiline` → `type: file` + `file_format: json`
+2. The user runs `trove migrate <module>` (a separate subcommand, kept distinct from the read-only `trove validate` — validate must remain read-only):
+   - Reads the string value for that key in `credentials.json`
+   - Writes it to `files/<KEY>.<format>`, mode `0600`
+   - Removes the key from `credentials.json`
+   - Prints a migration summary
+3. Verify: run `trove validate <module>` again — should be 0 error 0 warn
 
-`trove migrate` 是幂等的：已迁移过的字段会跳过（credentials.json 里没 key 且 files/ 里有文件 → 状态正确）。
+`trove migrate` is idempotent: already-migrated fields are skipped (key absent from credentials.json + file present in files/ → already in the correct state).
 
 ---
 
-## 3. AI 怎么用 Trove（runtime 行为）
+## 3. How AI Uses Trove (runtime behavior)
 
-**没有 inject 步骤、没有自定义语法、没有跨 agent 适配器**。AI 直接 `Read` 文件。
+**No inject step, no custom syntax, no cross-agent adapter**. AI calls `Read` on the files directly.
 
-### 项目里引用 module 的推荐方式：独立 `trove.md` 文件
+### Recommended way to reference modules from a project: a dedicated `trove.md` file
 
-**不要把 trove 引用混进 CLAUDE.md**——CLAUDE.md 应该只放项目本身的 context（架构、约定、术语），trove 模块声明独立成 `trove.md` 文件，仿 `package.json` / `.env` 的「单文件单职责」原则。
+**Don't mix trove references into CLAUDE.md** — CLAUDE.md should hold only the project's own context (architecture, conventions, terms). Trove module declarations live in a separate `trove.md` file, following the "one file, one responsibility" principle of `package.json` / `.env`.
 
-**项目根目录布局**：
+**Project root layout**:
 ```
 my-project/
-├── CLAUDE.md          # 项目本身的描述 + 一行 @trove.md 引用
-├── trove.md           # 仅列 trove 模块引用，无叙述
+├── CLAUDE.md          # project description + one @trove.md include
+├── trove.md           # only trove module references, no narrative
 └── ... (project files)
 ```
 
-**`CLAUDE.md`** 长这样：
+**`CLAUDE.md`** looks like:
 ```markdown
 # My Project
-（项目介绍、架构、约定、术语……）
+(project intro, architecture, conventions, terms…)
 
 @trove.md
 ```
 
-**`trove.md`** 长这样（只有引用，无注释、无 narrative）：
+**`trove.md`** looks like this (references only, no comments, no narrative):
 ```markdown
 @/Users/you/.trove/github-personal/module.md
 @/Users/zephyr/.trove/minimax/module.md
 @/Users/zephyr/.trove/cloudflare/module.md
 ```
 
-**这种分离的好处**：
-- CLAUDE.md 干净——重读时只看项目本身
-- trove.md 是唯一 trove 真相源——加/删 module 不动 CLAUDE.md
-- AI 一眼看出项目用哪些 trove 资源
-- 多项目对比：`diff project-a/trove.md project-b/trove.md` 直观看出资源差异
-- module 的「使用约定 / applies_to」由 module.md frontmatter 自带，不需要在项目里复述
+**Why split**:
+- CLAUDE.md stays clean — rereads focus on the project itself
+- trove.md is the single source of truth for trove use — adding/removing modules doesn't touch CLAUDE.md
+- AI sees at a glance which trove resources the project depends on
+- Cross-project diff: `diff project-a/trove.md project-b/trove.md` shows the resource delta clearly
+- The "usage convention / applies_to" for a module lives in its own frontmatter — no need to restate it per project
 
-### 是否 git 跟踪 `trove.md`
+### Whether to git-track `trove.md`
 
-- **单用户项目**（个人 / 小团队同账户）→ tracked，作为项目依赖记录
-- **多用户 / OSS 项目** → trove.md gitignored（含个人绝对路径），同时维护 `trove.example.md` tracked（仅列 module 名作 manifest，新协作者照抄即可）
+- **Single-user project** (personal / small team on the same account) → tracked, as a project dependency record
+- **Multi-user / OSS project** → `trove.md` gitignored (contains absolute paths); maintain `trove.example.md` tracked alongside (lists module names as a manifest; new contributors copy it)
 
-### 备选方式（不推荐做主入口，但可补充）
+### Alternative (not recommended as the primary entry, but valid as a complement)
 
-若需要按需 lazy load 而非启动即载，CLAUDE.md 直接写一段约定式描述也行：
+If you want lazy loading rather than load-on-startup, CLAUDE.md can write a conventional description:
 ```markdown
 This project uses Trove modules: minimax, cloudflare. Read ~/.trove/<name>/module.md when you need them.
 ```
-AI 用时再 Read，省 token，但失去 Claude Code 自动加载。**适合**：模块用得少 / 启动 context 紧张。
+AI reads on demand, saving tokens but losing Claude Code's auto-load. **Fits**: few modules used / tight startup context.
 
-### 凭证使用约定
+### Credential usage convention
 
-**AI 自取，不预先 export 到 env**：
-- HTTP 调用：`Authorization: Bearer $(jq -r .XXX_KEY ~/.trove/<svc>/credentials.json)`
-- shell 工具（如 `wrangler` 必须读 env）：临时 `export $(jq ... ~/.trove/<svc>/credentials.json | xargs)` 再调
-- AI 决定哪种方式
+**AI fetches on demand; do not pre-export to env**:
+- HTTP calls: `Authorization: Bearer $(jq -r .XXX_KEY ~/.trove/<svc>/credentials.json)`
+- Shell tools that must read env (like `wrangler`): temporarily `export $(jq ... ~/.trove/<svc>/credentials.json | xargs)` before invoking
+- AI picks the right shape
 
-**为什么 AI 自取**：上下文不污染、token 不浪费、blast radius 最小、AI 知道自己用哪种方式调最合适。
+**Why AI fetches**: context stays clean, tokens aren't wasted, blast radius is minimal, and AI knows which invocation style fits its current call.
 
-### MCP 配置（唯一需要「安装」的）
+### MCP configuration (the one thing that requires "install")
 
-MCP server 是独立进程，必须先注册到 agent：
-- AI 看到 module.md 里有 `mcp:` 字段
-- AI 用 Edit / Bash 工具把它 merge 到 `~/.claude.json` 或 `~/.cursor/mcp.json`
-- 或 Web UI 提供「Install MCP for this module」按钮一键 merge
+An MCP server is a separate process and must be registered with the agent:
+- AI sees the `mcp:` field in module.md
+- AI uses Edit / Bash to merge it into `~/.claude.json` or `~/.cursor/mcp.json`
+- Or the Web UI exposes an "Install MCP for this module" button for one-click merge
 
-**这件事不需要单独的 inject 工具**——AI 完全能做。
+**This doesn't need a dedicated inject tool** — AI can fully do it.
 
-### 让 AI 帮你配项目
+### Letting AI wire up a project for you
 
-最简单的用法是直接对话：
+The simplest usage is conversational:
 
-> "在这个项目用 minimax 和 cloudflare"
+> "Use minimax and cloudflare for this project"
 
-AI 会：
-1. `ls ~/.trove/` 确认两个 module 存在
-2. 读它们的 frontmatter（看 applies_to / credentials 字段）
-3. 写 / 更新当前项目的 CLAUDE.md
-4. 提示缺失字段（如 `CLOUDFLARE_ACCOUNT_ID` 没填）
+AI will:
+1. `ls ~/.trove/` to confirm both modules exist
+2. Read their frontmatter (`applies_to` / `credentials` fields)
+3. Write / update the current project's CLAUDE.md
+4. Flag missing fields (e.g. `CLOUDFLARE_ACCOUNT_ID` not filled)
 
 ---
 
-## 4. Web UI（核心产品）
+## 4. Web UI (the core product)
 
-**`trove ui` 启动本地 web server**，浏览器打开 `http://localhost:7821`。**这是 Trove 的主入口**——比 CLI 更适合管理结构化资源。
+**`trove ui` starts a local web server**; the browser opens `http://localhost:7821`. **This is Trove's primary entry** — better suited than the CLI for managing structured resources.
 
-**为什么是 web 不是桌面 app**：
-- 安装零摩擦（一行命令）
-- 跨平台同一份代码
-- OSS 先例：Jupyter / Storybook / Prisma Studio / Drizzle Studio
-- 数据从不离开你电脑
+**Why web, not a desktop app**:
+- Zero-friction install (one command)
+- Same codebase across platforms
+- OSS precedent: Jupyter / Storybook / Prisma Studio / Drizzle Studio
+- Your data never leaves the machine
 
-**界面（v0.1 三视图）**：
+**Interface (v0.1, three views)**:
 
-1. **Modules 列表**——按 category 分组的卡片视图，开关启用 / 编辑 / 删除 / 「在哪些项目用了」反查
-2. **Module 详情 / 编辑器**
-   - 左：根据 frontmatter `credentials` 自动生成的表单（编辑凭证值）—— password 字段遮蔽、URL 字段格式校验、help 文本带「去哪获取」链接
-   - 右：skill 正文 markdown 编辑器（实时 preview）
-   - 底部：「Install MCP」「Test connection」「Add to current project」三个动作按钮
-3. **AI Authoring**（创建新 module，§6）
+1. **Modules list** — cards grouped by category, with enable/disable / edit / delete / "which projects use this module" reverse lookup
+2. **Module detail / editor**
+   - Left: a form auto-generated from the frontmatter `credentials` (edits credential values) — password fields masked, URL fields format-validated, help text linked to "where to obtain"
+   - Right: skill-body markdown editor (live preview)
+   - Bottom: three action buttons — "Install MCP" / "Test connection" / "Add to current project"
+3. **AI Authoring** (create a new module; see §6)
 
-**关于「AI-Assisted Credential Entry」**：v0.1 经反思后认定**不该是 Web UI 独有的特性**。任何 AI agent（Claude Code、Cursor、Codex）在对话里都能完成「引导用户拿 key → 校验格式 → test → 写盘」全流程——chat 本身就是 entry interface。Web UI 只是这个流程的**可视化外壳**，不是必要载体。详见 §10 第 4 条。
+**On "AI-Assisted Credential Entry"**: on reflection, v0.1 concluded this is **not** a Web UI exclusive. Any AI agent (Claude Code, Cursor, Codex) can run the full "guide the user to fetch a key → validate format → test → write to disk" flow in conversation — chat itself is the entry interface. The Web UI is just a visualization shell around that flow, not a necessary host. See §10 entry 4.
 
-**v0.2 加**：Marketplace（社区 modules 浏览/安装）。
+**v0.2 adds**: Marketplace (browse / install community modules).
 
-**技术栈倾向**：Bun + Hono（与可选 CLI 共享）+ React 前端，单二进制部署。
+**Stack preference**: Bun + Hono (shared with the optional CLI) + React frontend, single-binary deploy.
 
 ---
 

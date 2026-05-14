@@ -68,9 +68,9 @@ Stack: Bun + Hono + HTMX + Tailwind CDN, server-side rendered.
 - [x] AGENTS.md — agent-contributor conventions (2026-05-12)
 - [x] Three-layer private-leak protection — PreToolUse hook + memory + AGENTS.md (2026-05-13). Mechanism caught its own first SPEC §10 entry — see entry for live evidence
 - [x] Positioning rewrite — "one ~/.trove/ shared across every agent in every project" as H1; MCP demoted to optional H2 (2026-05-13)
-- [ ] **SPEC.md English translation** — was v0.1 deferred item; now unblocked since MCP work + file-type creds stabilized the spec. ~half-day work; can do in two passes (§0–§4 core schema first, §5+ later)
+- [ ] **SPEC.md English translation** — pass 1 done 2026-05-14: §0–§4 (core schema, mcp sub-schemas, file-type creds, runtime behavior, Web UI) translated. §5–§11 (AI-Assisted Authoring, worked example, migration, CLI surface, open questions, dogfood log §10, v0.1 priorities) still Chinese — pass 2 lower priority since §10 is historical dogfood evidence and §11 is v0.1-era planning
 - [ ] **"Killer demo"** — short screencast / animated GIF of the core flow: `npm i -g @robozephyr/trove` → `trove install stripe` → fill creds → `echo '@~/.trove/stripe/module.md' >> CLAUDE.md` → AI knows Stripe. Should NOT use the maintainer's real project — synthesize a generic flow
-- [ ] README.zh-CN.md — referenced from README but doesn't exist; either create or remove the link
+- [x] README.zh-CN.md dead link removed (PR #2, 2026-05-14) — translated parallel README deferred until there's actual zh-CN audience signal
 
 **Beta circle (Week 2)**
 
