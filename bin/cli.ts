@@ -4,7 +4,7 @@
  */
 
 import pkg from "../package.json" with { type: "json" };
-import { runValidate } from "./trove-validate";
+import { runValidate } from "./validate";
 import { runMigrate } from "./migrate";
 import { runInstall } from "./install";
 import { startServer } from "../ui/server";

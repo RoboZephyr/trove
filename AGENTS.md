@@ -44,7 +44,7 @@ A pre-commit hook scans staged diffs for the maintainer's known private identifi
 ```
 bin/
   cli.ts              CLI entry — dispatches subcommands
-  trove-validate.ts   `trove validate` — read-only checks
+  validate.ts         `trove validate` — read-only checks
   migrate.ts          `trove migrate` — relocates legacy multiline creds → files/
   install.ts          `trove install` — copies library/<name> → ~/.trove/<name>
 ui/
