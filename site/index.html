@@ -89,7 +89,7 @@
 <p class="lede"><strong>One <code>~/.trove/</code> directory.</strong> Every AI coding agent — Claude Code, Codex, Cursor — in every project on your machine reuses the same API credentials and service playbooks.</p>
 
 <div class="stat-row">
-  <span><strong>17</strong> modules in library</span>
+  <span><strong>18</strong> modules in library</span>
   <span><strong>~/.trove/</strong> on disk</span>
   <span><strong>0</strong> cloud accounts</span>
   <span><strong>v0.2.2</strong> · 5 production modules</span>
@@ -140,7 +140,7 @@ trove ui
 
 <ul>
   <li><strong>Modules view</strong> — your installed modules grouped by category with credential-status indicators</li>
-  <li><strong>Library</strong> — 17 bundled module templates, one-click Install copies <code>module.md</code> into <code>~/.trove/</code></li>
+  <li><strong>Library</strong> — 18 bundled module templates, one-click Install copies <code>module.md</code> into <code>~/.trove/</code></li>
   <li><strong>Credentials form</strong> — masked password fields with reveal toggle, file-type fields with present/replace/delete widget, inline save via HTMX</li>
   <li><strong>Module detail</strong> — frontmatter + rendered skill markdown side-by-side, with <code>last_verified</code> tier dot</li>
 </ul>
@@ -162,7 +162,7 @@ trove ui
 
 <h2>What's in the library</h2>
 
-<p>Every module carries a <code>last_verified</code> field — what was actually tested, by whom, when. Dot color reflects current state. We'd rather ship 17 honest modules than 50 LLM-hallucinated ones.</p>
+<p>Every module carries a <code>last_verified</code> field — what was actually tested, by whom, when. Dot color reflects current state. We'd rather ship 18 honest modules than 50 LLM-hallucinated ones.</p>
 
 <div class="legend">
   <span><span class="vdot vdot-prod"></span>production · daily-use</span>
@@ -183,6 +183,7 @@ trove ui
   <span class="name"><span class="vdot vdot-ver"></span>brave</span>
 
   <div class="cat">media-generation</div>
+  <span class="name"><span class="vdot vdot-ver"></span>seedance</span>
   <span class="name"><span class="vdot vdot-par"></span>kling</span>
   <span class="name"><span class="vdot vdot-ver"></span>fal-ai</span>
 
@@ -210,7 +211,7 @@ trove ui
 
 <ul>
   <li><a href="https://github.com/RoboZephyr/trove/blob/main/SPEC.md">SPEC</a> — the format definition (frontmatter schema, reference syntax, runtime conventions). Includes a living <em>convention adherence log</em> in §10 of real dogfood lessons from production.</li>
-  <li><a href="https://github.com/RoboZephyr/trove/tree/main/library">library/</a> — the 17 bundled modules listed above</li>
+  <li><a href="https://github.com/RoboZephyr/trove/tree/main/library">library/</a> — the 18 bundled modules listed above</li>
   <li><a href="https://github.com/RoboZephyr/trove/blob/main/ROADMAP.md">ROADMAP</a> — phases and explicit non-goals (no <code>trove init</code>, no inject step, no SaaS — ever)</li>
   <li><a href="https://github.com/RoboZephyr/trove/blob/main/CONTRIBUTING.md">CONTRIBUTING</a> — module quality bar</li>
   <li><a href="https://github.com/RoboZephyr/trove/blob/main/docs/design-v0.2.md">design-v0.2.md</a> — why the Web UI dropped AI-chat features (chat IS the entry interface; UI is the visualization)</li>
