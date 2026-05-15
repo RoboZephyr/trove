@@ -5,56 +5,98 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trove — one ~/.trove/ shared across every AI coding agent in every project</title>
 <meta name="description" content="One ~/.trove/ directory holds your API credentials and service playbooks for every service you use. Every AI coding agent (Claude Code, Codex, Cursor) reuses them across every project on your machine. No more re-pasting Stripe keys into fresh .env files.">
+<meta property="og:title" content="Trove — local-first resource manager for AI coding agents">
+<meta property="og:description" content="One ~/.trove/ directory. Every AI coding agent in every project reuses the same API credentials and service playbooks.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://trove.robozephyr.com">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #fafaf9; --ink: #0a0a0a; --ink-2: #404040; --ink-3: #737373; --ink-4: #a3a3a3;
-    --line: #e7e5e4; --line-soft: #f5f5f4;
-    --accent: #b45309; --accent-soft: #fef3c7;
+    --bg: #fafaf9; --bg-soft: #f5f5f4;
+    --ink: #0a0a0a; --ink-2: #404040; --ink-3: #737373; --ink-4: #a3a3a3;
+    --line: #e7e5e4; --line-soft: #f5f5f4; --line-strong: #d6d3d1;
+    --accent: #b45309; --accent-soft: #fef3c7; --accent-strong: #92400e;
     --code-bg: #18181b; --code-ink: #f4f4f5;
+    --shadow-soft: 0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
+    --shadow-hover: 0 2px 4px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.08);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0c0a09; --ink: #fafaf9; --ink-2: #d4d4d8; --ink-3: #a1a1aa; --ink-4: #71717a;
-      --line: #27272a; --line-soft: #18181b;
-      --accent: #f59e0b; --accent-soft: #422006;
+      --bg: #0c0a09; --bg-soft: #18181b;
+      --ink: #fafaf9; --ink-2: #d4d4d8; --ink-3: #a1a1aa; --ink-4: #71717a;
+      --line: #27272a; --line-soft: #18181b; --line-strong: #3f3f46;
+      --accent: #f59e0b; --accent-soft: #422006; --accent-strong: #fbbf24;
       --code-bg: #0a0a0a; --code-ink: #e4e4e7;
+      --shadow-soft: 0 1px 2px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2);
+      --shadow-hover: 0 2px 4px rgba(0,0,0,0.4), 0 8px 24px rgba(0,0,0,0.3);
     }
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; font-feature-settings: 'ss01', 'cv11'; -webkit-font-smoothing: antialiased; }
-  body { padding: 3rem 1.5rem 5rem; max-width: 780px; margin-inline: auto; font-size: 16px; line-height: 1.65; }
-  .mono, code, pre { font-family: 'Geist Mono', ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace; }
+  body { padding: 3rem 1.5rem 5rem; max-width: 820px; margin-inline: auto; font-size: 16px; line-height: 1.65; }
+  .mono, code, pre, kbd { font-family: 'Geist Mono', ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace; }
 
-  h1 { font-size: clamp(2.4rem, 6vw, 3.2rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1; margin: 0 0 0.5rem; }
-  h2 { font-size: 0.78rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); margin: 3rem 0 1rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--line); }
+  h1 { font-size: clamp(2.8rem, 7vw, 3.6rem); font-weight: 600; letter-spacing: -0.035em; line-height: 1; margin: 0.5rem 0 0.5rem; }
+  h2 { font-size: 0.78rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); margin: 3.5rem 0 1rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 0.5rem; letter-spacing: -0.01em; }
   p { margin: 0 0 1rem; color: var(--ink-2); }
-  .lede { font-size: 1.15rem; color: var(--ink-2); margin: 1rem 0 2rem; max-width: 60ch; line-height: 1.55; }
-  pre { background: var(--code-bg); color: var(--code-ink); padding: 1rem 1.25rem; border-radius: 8px; overflow-x: auto; font-size: 13.5px; line-height: 1.55; margin: 1.2rem 0; }
+  .lede { font-size: 1.2rem; color: var(--ink); margin: 1rem 0 1.75rem; max-width: 60ch; line-height: 1.5; font-weight: 400; }
+  .lede strong { font-weight: 600; }
+  pre { background: var(--code-bg); color: var(--code-ink); padding: 1rem 1.25rem; border-radius: 8px; overflow-x: auto; font-size: 13.5px; line-height: 1.6; margin: 1.2rem 0; box-shadow: var(--shadow-soft); }
   code { font-size: 0.9em; }
-  :not(pre) > code { background: var(--line-soft); color: var(--ink); padding: 0.1em 0.4em; border-radius: 3px; }
-  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 150ms; }
+  :not(pre) > code { background: var(--line-soft); color: var(--ink); padding: 0.15em 0.45em; border-radius: 4px; border: 1px solid var(--line); font-size: 0.85em; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 150ms, color 150ms; }
   a:hover { border-bottom-color: var(--accent); }
   ul { padding-left: 0; list-style: none; }
-  ul > li { padding-left: 1.1rem; position: relative; margin: 0.45rem 0; color: var(--ink-2); }
+  ul > li { padding-left: 1.1rem; position: relative; margin: 0.5rem 0; color: var(--ink-2); }
   ul > li::before { content: ''; position: absolute; left: 0.1rem; top: 0.85rem; width: 4px; height: 4px; background: var(--ink-4); border-radius: 999px; }
   strong { color: var(--ink); font-weight: 600; }
 
   .ascii { font-size: 11px; line-height: 1.2; color: var(--ink-4); white-space: pre; margin: 0 0 1.5rem; overflow-x: auto; }
-  .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); margin-right: 0.4em; font-weight: 500; letter-spacing: 0.02em; }
-  .meta { color: var(--ink-3); font-size: 12.5px; font-family: 'Geist Mono', ui-monospace, monospace; letter-spacing: -0.01em; }
+  .meta { color: var(--ink-3); font-size: 12.5px; font-family: 'Geist Mono', ui-monospace, monospace; }
 
-  .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem 1.25rem; margin: 1rem 0; }
-  .module-grid .cat { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-3); margin-top: 0.75rem; }
-  .module-grid .cat:first-child { margin-top: 0; }
-  .module-grid .name { font-size: 14px; color: var(--ink); font-family: 'Geist Mono', ui-monospace, monospace; display: inline-flex; align-items: center; gap: 0.45em; }
+  /* CTA buttons */
+  .btn-row { display: flex; gap: 0.6rem; margin: 1.75rem 0 2.5rem; flex-wrap: wrap; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 0.45em; padding: 0.6rem 1.1rem; border-radius: 7px; font-size: 14px; font-weight: 500; line-height: 1; transition: all 150ms; border-bottom: none; white-space: nowrap; }
+  .btn-primary { background: var(--ink); color: var(--bg); }
+  .btn-primary:hover { background: var(--accent); color: #fff; border-bottom: none; transform: translateY(-1px); }
+  .btn-secondary { background: var(--bg); color: var(--ink); border: 1px solid var(--line-strong); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+  .btn .arrow { transition: transform 150ms; font-size: 0.9em; }
+  .btn:hover .arrow { transform: translateX(2px); }
+  .install-cmd { display: inline-flex; align-items: center; gap: 0.5em; padding: 0.6rem 1rem; border-radius: 7px; background: var(--code-bg); color: var(--code-ink); font-family: 'Geist Mono', monospace; font-size: 13.5px; box-shadow: var(--shadow-soft); }
+  .install-cmd .prompt { color: var(--ink-4); user-select: none; }
+
+  /* Quick start steps */
+  .steps { display: grid; gap: 0.85rem; margin: 1.5rem 0 2.5rem; }
+  .step { display: grid; grid-template-columns: auto 1fr; gap: 0.8rem 1.1rem; align-items: start; }
+  .step-num { font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 600; color: var(--ink-3); padding: 0.25rem 0.55rem; border: 1px solid var(--line-strong); border-radius: 5px; height: fit-content; letter-spacing: 0.08em; line-height: 1; align-self: start; margin-top: 0.15rem; }
+  .step-body p { margin: 0 0 0.5rem; color: var(--ink); }
+  .step-body .meta { color: var(--ink-3); }
+  .step-body pre { margin: 0.5rem 0 0; padding: 0.7rem 0.9rem; font-size: 12.5px; }
+
+  /* Cards (for What's New) */
+  .cards { display: grid; gap: 1rem; margin: 1.5rem 0 2rem; grid-template-columns: 1fr; }
+  @media (min-width: 720px) { .cards { grid-template-columns: 1fr 1fr 1fr; } }
+  .card { padding: 1.25rem; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); transition: all 180ms; display: flex; flex-direction: column; }
+  .card:hover { border-color: var(--line-strong); transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+  .card h3 { font-family: 'Geist Mono', monospace; font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 0.7rem; letter-spacing: -0.005em; }
+  .card .badge { display: inline-block; font-size: 10.5px; padding: 2px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 500; letter-spacing: 0.02em; margin-left: 0.4em; vertical-align: 1px; }
+  .card p { font-size: 13px; line-height: 1.5; color: var(--ink-2); margin: 0 0 0.85rem; flex: 1; }
+  .card pre { margin: 0; font-size: 11.5px; padding: 0.65rem 0.8rem; line-height: 1.5; box-shadow: none; }
+
+  /* Module grid (existing, refined) */
+  .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0.5rem 1.25rem; margin: 1rem 0; }
+  .module-grid .cat { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-3); margin-top: 1rem; padding-top: 0.7rem; border-top: 1px dashed var(--line); }
+  .module-grid .cat:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+  .module-grid .name { font-size: 14px; color: var(--ink); font-family: 'Geist Mono', ui-monospace, monospace; display: inline-flex; align-items: center; gap: 0.45em; padding: 0.2rem 0; }
 
   .vdot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; flex: 0 0 7px; }
-  .vdot-prod { background: #16a34a; }
-  .vdot-ver  { background: #84cc16; }
-  .vdot-par  { background: #eab308; }
+  .vdot-prod { background: #16a34a; box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.15); }
+  .vdot-ver  { background: #84cc16; box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.15); }
+  .vdot-par  { background: #eab308; box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.15); }
   .vdot-pend { background: var(--ink-4); }
   @media (prefers-color-scheme: dark) {
     .vdot-prod { background: #22c55e; }
@@ -62,19 +104,27 @@
     .vdot-par  { background: #facc15; }
   }
 
-  .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: 11.5px; color: var(--ink-3); font-family: 'Geist Mono', ui-monospace, monospace; margin: 0.4rem 0 1rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: 11.5px; color: var(--ink-3); font-family: 'Geist Mono', monospace; margin: 0.6rem 0 1.25rem; }
   .legend span { display: inline-flex; align-items: center; gap: 0.4em; }
 
   .vs-table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 1rem 0 1.5rem; }
-  .vs-table th, .vs-table td { text-align: left; vertical-align: top; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--line); }
+  .vs-table th, .vs-table td { text-align: left; vertical-align: top; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--line); }
   .vs-table th { font-weight: 500; color: var(--ink-3); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; }
-  .vs-table td:first-child { white-space: nowrap; color: var(--ink); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; width: 1%; }
+  .vs-table td:first-child { white-space: nowrap; color: var(--ink); font-family: 'Geist Mono', monospace; font-size: 13px; width: 1%; }
   .vs-table td { color: var(--ink-2); }
 
-  .stat-row { display: flex; flex-wrap: wrap; gap: 1.25rem 2rem; padding: 0.85rem 0; margin: 1rem 0 1.5rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink-3); font-family: 'Geist Mono', ui-monospace, monospace; }
+  .stat-row { display: flex; flex-wrap: wrap; gap: 0.75rem 1.75rem; padding: 0.85rem 0; margin: 0.5rem 0 1rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--ink-3); font-family: 'Geist Mono', monospace; }
   .stat-row strong { color: var(--ink); font-weight: 600; }
+  .stat-row .dot-sep { color: var(--ink-4); }
 
-  footer { margin-top: 5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 13px; line-height: 1.7; }
+  footer { margin-top: 5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 13px; line-height: 1.7; display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; justify-content: space-between; }
+  footer a { color: var(--ink-3); }
+  footer a:hover { color: var(--accent); }
+
+  /* No entrance animation — trove brand_voice is technical / mechanism-clear,
+     motion intensity ≤ 3 per the visual-engineering playbook. Hover-only
+     micro-motion (cards lift, buttons translateY -1px) is kept; full-page
+     fade-up reads as "AI default polish" and was cut. */
 </style>
 </head>
 <body>
@@ -82,17 +132,26 @@
 <pre class="ascii">     _
     | |_ ___ _____   _____
     |  _|  _|  _  |_|   -|
-    |_| |_| |_____|_|___/   v0.2 — Web UI shipped
+    |_| |_| |_____|_|___/   v0.2.4 — 20 modules, live-verified
 </pre>
 
 <h1>Trove</h1>
 <p class="lede"><strong>One <code>~/.trove/</code> directory.</strong> Every AI coding agent — Claude Code, Codex, Cursor — in every project on your machine reuses the same API credentials and service playbooks.</p>
 
+<div class="btn-row">
+  <span class="install-cmd"><span class="prompt">$</span> npm install -g @robozephyr/trove</span>
+  <a class="btn btn-secondary" href="https://github.com/RoboZephyr/trove">GitHub <span class="arrow">→</span></a>
+  <a class="btn btn-secondary" href="https://www.npmjs.com/package/@robozephyr/trove">npm <span class="arrow">→</span></a>
+</div>
+
 <div class="stat-row">
   <span><strong>20</strong> modules in library</span>
+  <span class="dot-sep">·</span>
+  <span><strong>5</strong> production <span class="dot-sep">·</span> <strong>14</strong> verified <span class="dot-sep">·</span> <strong>1</strong> partial</span>
+  <span class="dot-sep">·</span>
   <span><strong>~/.trove/</strong> on disk</span>
+  <span class="dot-sep">·</span>
   <span><strong>0</strong> cloud accounts</span>
-  <span><strong>v0.2.4</strong> · 5 production · 14 verified · 1 partial</span>
 </div>
 
 <p>No more re-pasting Stripe keys into a fresh <code>.env</code> for every project. No more re-explaining "this service has a quirk that bit me last time" to a fresh agent session. Add a service once at <code>~/.trove/&lt;service&gt;/</code>; reference it from any project's <code>CLAUDE.md</code> / <code>AGENTS.md</code> / <code>.cursorrules</code> with one line:</p>
@@ -103,21 +162,72 @@
 
 <p><strong>No inject step. No init step. No per-agent shims.</strong> Trove is a plain directory; the AI is the runtime.</p>
 
+<h2>Quick start</h2>
+
+<div class="steps">
+  <div class="step">
+    <span class="step-num">01</span>
+    <div class="step-body">
+      <p><strong>Install the CLI</strong></p>
+      <p class="meta">Node 22+. The <code>trove</code> binary becomes available on your PATH.</p>
+      <pre>npm install -g @robozephyr/trove</pre>
+    </div>
+  </div>
+  <div class="step">
+    <span class="step-num">02</span>
+    <div class="step-body">
+      <p><strong>Install a module + open the Web UI to fill credentials</strong></p>
+      <p class="meta">Pick from 20 bundled modules (or <code>trove install --list</code> to browse). The UI binds to <code>127.0.0.1:7821</code> only — never public.</p>
+      <pre>trove install stripe
+trove ui     # → http://127.0.0.1:7821</pre>
+    </div>
+  </div>
+  <div class="step">
+    <span class="step-num">03</span>
+    <div class="step-body">
+      <p><strong>Reference it from any project</strong></p>
+      <p class="meta">Add one line to <code>CLAUDE.md</code> / <code>AGENTS.md</code> / <code>.cursorrules</code> — the AI picks up the playbook + credentials on session start.</p>
+      <pre>echo '@/Users/you/.trove/stripe/module.md' >> CLAUDE.md</pre>
+    </div>
+  </div>
+</div>
+
 <h2>What's new in v0.2.4</h2>
 
-<p>Three new modules — all <em>live-verified</em>, not LLM-hallucinated. Module bodies built from real API calls during authoring; <code>last_verified</code> records token counts, wall-clock, and the exact gotchas found.</p>
+<p>Three new modules — all <em>live-verified</em>, not LLM-hallucinated. Module bodies built from real API calls during authoring; <code>last_verified</code> records token counts, wall-clock, and exact gotchas.</p>
 
-<p><strong><code>seedance</code></strong> · Doubao Seedance 2.0 — ByteDance Volcengine multimodal video gen (text + up to 9 images + 3 videos + 3 audios → 4–15s clip). Async tasks, token-billed.</p>
-<pre>"Use seedance to generate a 5s 720p product video: morning kitchen,
-hands holding a steaming mug, slow push-in, ambient piano."</pre>
+<div class="cards">
 
-<p><strong><code>seedream</code></strong> · Doubao Seedream 4.0 / 4.5 / 5.0 — Volcengine image gen. Multi-image fusion (up to 14 refs), group output (N coordinated images in one call), streaming, web-search-augmented (5.0 lite). Sync, ~15–30s per image.</p>
-<pre>"Use seedream to generate 4 brand-system mocks (tote bag, cap,
-business card, lanyard) from this logo. Green primary palette."</pre>
+  <div class="card">
+    <h3>seedance <span class="badge">verified</span></h3>
+    <p>Doubao Seedance 2.0 — Volcengine multimodal video gen (text + up to 9 images + 3 videos + 3 audios → 4–15s clip). Async tasks, token-billed.</p>
+    <pre>Use seedance to generate
+a 5s 720p product video:
+morning kitchen, hands
+holding a steaming mug,
+slow push-in.</pre>
+  </div>
 
-<p><strong><code>ngrok</code></strong> · Dev tunneling. Free tier now ships one stable <code>*.ngrok-free.dev</code> reserved subdomain per account (discovered live during smoke; corrected pre-2025 docs that say "every restart is random"). Two credentials, deliberately documented as distinct: <code>NGROK_AUTHTOKEN</code> for the agent, <code>NGROK_API_KEY</code> for the management REST API.</p>
-<pre>"Open an ngrok tunnel to my local server on :4242 so Stripe
-webhooks can hit it during dev."</pre>
+  <div class="card">
+    <h3>seedream <span class="badge">verified</span></h3>
+    <p>Doubao Seedream 4.0 / 4.5 / 5.0 image gen. Multi-image fusion (up to 14 refs), group output, streaming, web-search-augmented. Sync, ~15–30s per image.</p>
+    <pre>Use seedream to make
+4 brand-system mocks
+(tote bag, cap, card,
+lanyard) from this logo.
+Green primary palette.</pre>
+  </div>
+
+  <div class="card">
+    <h3>ngrok <span class="badge">verified</span></h3>
+    <p>Dev tunneling. Free tier ships one stable <code>*.ngrok-free.dev</code> reserved subdomain — corrected against old "every restart is random" docs via live smoke.</p>
+    <pre>Open an ngrok tunnel
+to my local server on
+:4242 so Stripe webhooks
+can hit it during dev.</pre>
+  </div>
+
+</div>
 
 <p>Plus, on the infra side: <a href="https://github.com/RoboZephyr/trove/blob/main/.github/workflows/ci.yml">CI workflow</a> runs typecheck + validate on every PR; <a href="https://github.com/RoboZephyr/trove/blob/main/SECURITY.md">SECURITY.md</a> documents the private vulnerability flow; <a href="https://github.com/RoboZephyr/trove/blob/main/SPEC.md">SPEC.md §0–§4</a> translated to English (the schema-facing half — §5+ remains in Chinese as historical dogfood evidence).</p>
 
@@ -148,16 +258,10 @@ webhooks can hit it during dev."</pre>
 
 <h2>Web UI</h2>
 
-<p>Run <code>trove ui</code> and a localhost dashboard at <code>http://127.0.0.1:7821</code> lets you browse installed modules, fill credentials through a form (eye-icon to reveal what you just typed), and install new ones from the bundled library — all without ever opening <code>credentials.json</code> in <code>$EDITOR</code>.</p>
-
-<pre>npm install -g @robozephyr/trove
-trove ui
-# → http://127.0.0.1:7821</pre>
-
-<p class="meta">Node 22+. Homebrew tap planned for v1.0.</p>
+<p><code>trove ui</code> opens a local dashboard at <code>127.0.0.1:7821</code> (bound to localhost only — never public). Four views:</p>
 
 <ul>
-  <li><strong>Modules view</strong> — your installed modules grouped by category with credential-status indicators</li>
+  <li><strong>Modules</strong> — your installed modules grouped by category with credential-status indicators</li>
   <li><strong>Library</strong> — 20 bundled module templates, one-click Install copies <code>module.md</code> into <code>~/.trove/</code></li>
   <li><strong>Credentials form</strong> — masked password fields with reveal toggle, file-type fields with present/replace/delete widget, inline save via HTMX</li>
   <li><strong>Module detail</strong> — frontmatter + rendered skill markdown side-by-side, with <code>last_verified</code> tier dot</li>
@@ -239,12 +343,13 @@ trove ui
 
 <h2>Status</h2>
 
-<p><strong>v0.2.</strong> Format is stable. Web UI shipped. Available on npm as <code>@robozephyr/trove</code> — <code>npm install -g @robozephyr/trove</code>. MCP-shape modules are live (supabase, stripe, npm, google-analytics). Live dogfood ongoing — see <a href="https://github.com/RoboZephyr/trove/blob/main/SPEC.md#10-convention-adherence-log">SPEC §10</a> for the lessons-learned log driving spec evolution.</p>
+<p>v0.2.4 — the format spec is stable, all 20 modules are gated by <code>last_verified</code>, and the maintainer dogfoods trove daily across personal projects. AI-assisted module authoring (v0.3) and a marketplace for community modules (v1.0) are next.</p>
 
-<p>Next: file-type credentials (SA JSON / SSH key / x509 cert) unified handling, more library modules, public OSS launch.</p>
+<p>The repo is <a href="https://github.com/RoboZephyr/trove">github.com/RoboZephyr/trove</a> — issues, PRs, and module additions welcome (see <a href="https://github.com/RoboZephyr/trove/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for the quality bar).</p>
 
 <footer>
-  <a href="https://github.com/RoboZephyr/trove">github.com/RoboZephyr/trove</a> · MIT licensed · Built by <a href="https://github.com/RoboZephyr">@RoboZephyr</a>
+  <span>MIT licensed · <a href="https://github.com/RoboZephyr/trove">github.com/RoboZephyr/trove</a></span>
+  <span><a href="https://www.npmjs.com/package/@robozephyr/trove">@robozephyr/trove on npm</a></span>
 </footer>
 
 </body>

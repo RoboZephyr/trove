@@ -12,7 +12,7 @@ applies_to:
   - cache purge after deploy
   - any task using `wrangler` CLI
 trove_spec: "0.1"
-last_verified: "production · trove.roboz.dev deploy + send.roboz.dev DNS write (see SPEC §10)"
+last_verified: "production · trove.robozephyr.com deploy 2026-05-15 — CF Pages custom domain + DNS CNAME on robozephyr.com zone, SSL active in 1 min. Plus send.<sub>.<root>.com DNS write via Resend×Cloudflare cross-module (see SPEC §10)"
 
 credentials:
   CLOUDFLARE_API_TOKEN:

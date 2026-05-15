@@ -23,7 +23,7 @@ In scope:
 - The CLI (`@robozephyr/trove`) — credential read/write, file mode enforcement, path handling, MCP config merging
 - The Web UI (`trove ui`) — local HTTP server on `127.0.0.1:7821`, credential form handling, SSRF, content escape on rendered module bodies
 - The bundled module library (`library/`) — example credential files, skill body contents
-- The hosted landing site (`site/`, `trove.roboz.dev`) — content only
+- The hosted landing site (`site/`, `trove.robozephyr.com`) — content only
 
 Out of scope:
 - Issues that require the attacker to already have shell or read access to the user's `~/.trove/` directory (the threat model assumes filesystem perms are intact)
