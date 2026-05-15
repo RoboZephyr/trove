@@ -1,6 +1,8 @@
 # Trove
 
-> **One `~/.trove/` directory. Every AI coding agent — Claude Code, Codex, Cursor — in every project on your machine reuses the same API credentials and service playbooks.**
+**Shared API credentials + service playbooks for every AI coding agent on your machine.** Local-first, no SaaS, no per-project re-paste.
+
+> One `~/.trove/` directory. Every AI coding agent — Claude Code, Codex, Cursor — in every project on your machine reuses the same API credentials and service playbooks.
 
 No more re-pasting Stripe keys into a fresh `.env` for every project. No more re-explaining "this service has a quirk that bit me last time" to a fresh agent session. Add a service once at `~/.trove/<service>/`; reference it from any project's `CLAUDE.md` / `AGENTS.md` / `.cursorrules` with one line:
 
