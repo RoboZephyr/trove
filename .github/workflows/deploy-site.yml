@@ -19,6 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # wrangler-action@v3 auto-detects the package manager from lockfile presence.
+      # Trove ships `bun.lock`, so the action tries to invoke `bun` which is not
+      # preinstalled on ubuntu-latest. Install it explicitly first.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: Publish to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
