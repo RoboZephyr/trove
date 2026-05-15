@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- amber background matching the site accent (#b45309) -->
+  <rect width="64" height="64" rx="12" fill="#b45309"/>
+  <!-- T top bar -->
+  <rect x="13" y="17" width="38" height="9" rx="1.5" fill="#fafaf9"/>
+  <!-- T stem -->
+  <rect x="28" y="17" width="8" height="33" rx="1.5" fill="#fafaf9"/>
+  <!-- baseline mark — echoes the `~/.trove/` path underline -->
+  <rect x="20" y="50" width="24" height="2.5" rx="1" fill="#fafaf9" opacity="0.85"/>
+</svg>
