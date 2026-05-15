@@ -1,18 +1,21 @@
 ---
 name: seedream
-version: 0.1.0
+version: 0.2.0
 category: media-generation
-description: Doubao Seedream 4.0 / 4.5 / 5.0 — Volcengine Ark text-to-image + image-to-image generation. Synchronous (~15-20s per image), token-billed at exactly 1 token per 256 pixels, OpenAI-SDK-compatible
-homepage: https://www.volcengine.com/docs/82379
-tags: [image-gen, doubao, ark, openai-compatible, t2i, i2i]
+description: Doubao Seedream 4.0 / 4.5 / 5.0 (incl. 5.0 lite) — Volcengine Ark image generation. Text-to-image, image-to-image, multi-image fusion (up to 14 refs), group output, streaming, web-search-augmented. Sync API, token-billed at exactly 1 token per 256 pixels, OpenAI-SDK-compatible
+homepage: https://www.volcengine.com/docs/82379/1366799
+tags: [image-gen, doubao, ark, openai-compatible, t2i, i2i, multi-image, group-gen, streaming]
 applies_to:
-  - text-to-image generation at 2K resolution and up (smaller sizes rejected by min-pixel gate)
-  - image-to-image rewrites (style transfer, recolor, scene edit, character preservation)
-  - chaining with seedance video gen (Seedream 5.0 lite outputs are face-trust whitelisted for downstream Seedance reference, 30-day window)
-  - drop-in replacement for OpenAI image-gen in projects that need cheaper / non-OpenAI hosting in cn-beijing
+  - "text-to-image generation at 2K / 3K / 4K resolution (or custom pixel sizes within per-model bounds)"
+  - "single-image i2i: edit / restyle / recolor / change material / change subject of one reference image"
+  - "multi-image fusion (up to 14 reference images): combine subject from image 1 with style from image 2, outfit swap, character + scene compositing"
+  - "group image generation: generate 2 to N coordinated images in one call (comic panels, brand-system mocks, multi-scene storyboards)"
+  - "streaming: receive each completed image immediately during group gen instead of waiting for the full batch"
+  - "web-search-augmented generation (Seedream 5.0 lite only): the model can query the web before generating"
+  - "building consistent-character pipelines that feed into Seedance video gen (Seedream-5.0-lite outputs are face-trust whitelisted for 30 days)"
 trove_spec: "0.1"
 lastmod: "2026-05-15"
-last_verified: "2026-05-15 · E2E live — 5 generations across t2i (default 2K, 16:9 at 2560×1440), i2i (both `image` and `image_url` request shapes), response_format `url` and `b64_json`. Endpoint ID resolves to `doubao-seedream-5-0-260128` in response. Token billing formula `tokens = width × height / 256` verified to the byte (2048×2048→16384, 2560×1440→14400). Image URL 24h presigned (`X-Tos-Expires=86400`), JPEG output. Wall-clock 13–21s per image"
+last_verified: "2026-05-15 · E2E live across 7 calls — basic t2i (default 2K), 16:9 (2560×1440), i2i with `image:string`, i2i with `image:[urls]` multi-image array, `size:\"2K\"` shorthand, `output_format:\"png\"` (URL .png suffix confirmed), `sequential_image_generation:\"auto\"+max_images:2`, `response_format:\"b64_json\"`. Endpoint ID resolves to `doubao-seedream-5-0-260128` in response. Token formula `output_tokens = width × height / 256` verified to the byte. Wall-clock 13–34s per response"
 
 credentials:
   ARK_API_KEY:
@@ -25,16 +28,21 @@ credentials:
 
 ## ⚠️ Critical Constraints (read before writing code)
 
-1. **Account funding gate: balance ≥ ¥200 OR active resource package** — same gate as Seedance. The first call returns `ModelNotOpen` from Ark, not a billing error. Top up at https://console.volcengine.com/ark before integrating. Activating one Doubao model (or creating an Endpoint ID for it) is a separate console step on top of funding.
-2. **Minimum total pixels is 3,686,400** — `size: "1024x1024"` is **rejected** with `image size must be at least 3686400 pixels`. The default `2048×2048` (4,194,304 pixels) just clears the bar. Any custom size works as long as `width × height >= 3686400` — so `2560×1440` (3,686,400 exactly — 16:9), `1920×1920` (3,686,400 — 1:1), `2880×1620` (4,665,600 — 16:9 higher) all valid.
-3. **Token billing is exactly `width × height / 256`** — verified to the byte: 2048×2048 → 16384 tokens; 2560×1440 → 14400 tokens. Pay-by-pixel-area at a fixed rate. **Bigger images cost proportionally more** — there is no fixed per-image fee, no "first 1024² is free" discount. Calculate your bill before requesting 4K.
-4. **`n` (multi-image per call) is silently ignored — always returns 1** — passing `n: 2` returns the same `{data: [{...}]}` with one image. To get 2 images, make 2 calls (each billed individually). The OpenAI-spec `n` field is accepted by the schema parser but the model only emits one image.
-5. **Result image URL expires in 24 hours** — same TOS-signed pattern as Seedance video (`X-Tos-Expires=86400`). If you need durable storage, download immediately. The `b64_json` response format returns inline base64 (no expiry concern) at the cost of a larger response body.
-6. **Output is always JPEG, never PNG** — the URL ends in `.jpeg`; `b64_json` content starts with `/9j/` (JPEG magic number). If you need PNG for transparency or lossless, re-encode locally after download — there is no `output_format` parameter.
-7. **Sync API, not async** — Seedance returns a task_id and you poll. Seedream returns the image inline in one HTTP response after 13–21s wall-clock. No polling needed. Set your HTTP client's read timeout to **at least 60s** — default 30s timeouts in some HTTP libraries (older Node `fetch`, default `requests`) will cut off mid-generation.
-8. **Model ID format**: `doubao-seedream-<major>-<minor>-<YYMMDD>` — e.g. `doubao-seedream-5-0-260128`, `doubao-seedream-4-5-251128`. An Endpoint ID (`ep-xxxx`) also works in the `model` field; the response normalizes back to the underlying model ID.
-9. **Active versions as of 2026-05**: `doubao-seedream-3-0-t2i-250415` (Retiring), `doubao-seedream-4-0-250828`, `doubao-seedream-4-5-251128`, `doubao-seedream-5-0-260128` (latest, recommended default). 3.0's `-t2i-` infix was dropped from 4.0 onward (unified t2i + i2i in one model).
-10. **OpenAI-SDK compatible — point the OpenAI client at the Ark base URL and the request shape works as-is** — `/api/v3/images/generations` accepts the OpenAI `{model, prompt, size, n, response_format, seed}` body. Volcengine-specific extras: `watermark: bool`, `image`/`image_url` field for i2i.
+1. **Account funding gate: balance ≥ ¥200 OR active resource package** — same gate as Seedance. First call returns `ModelNotOpen` from Ark, not a billing error. Top up at https://console.volcengine.com/ark, then activate the specific Seedream model (or create an Endpoint ID for it).
+2. **Minimum total pixels depends on the model** — Seedream 5.0 lite / 4.5: `2560×1440 = 3,686,400` minimum. Seedream 4.0: `1280×720 = 921,600` minimum (much lower, useful for cheap iteration). All models cap at `4096×4096 = 16,777,216`. The error string `image size must be at least <N> pixels` returns the exact threshold for your model. **Width/height each must be > 14 px**; aspect ratio in `[1/16, 16]`.
+3. **Token billing is exactly `width × height / 256`** — verified to the byte. 2048×2048 → 16,384 tokens; 2560×1440 → 14,400 tokens. **There is no per-image flat fee and no batch discount.** Bigger images cost proportionally more.
+4. **Result image URL expires in 24 hours** — same TOS-presigned pattern (`X-Tos-Expires=86400`). Use `response_format: "b64_json"` to skip URL handling, or download eagerly and persist to your own storage.
+5. **Output format varies by model**:
+   - Seedream 5.0 lite: `output_format: "png"` OR `"jpeg"` (default `jpeg`)
+   - Seedream 4.5 / 4.0: **jpeg only** — `output_format: "png"` is ignored or errors
+6. **There is NO `n` parameter — use `sequential_image_generation` for multiple images** — the OpenAI-spec `n` field is silently accepted but always returns 1. To get N images in one call, pass `sequential_image_generation: "auto"` + `sequential_image_generation_options: {max_images: N}`. The model then decides how many to emit (up to `max_images`) — **`max_images` is an UPPER BOUND, not a guaranteed count**. Make the prompt explicit ("generate 4 panels of ...") to push toward N.
+7. **Reference-image quota: input + output ≤ 15** — if you pass 14 reference images, you can ask for ≤ 1 output. The 14-ref cap is a hard input limit; the 15-total includes outputs.
+8. **Sync API (with optional streaming)** — Seedream returns inline after 13–34s wall-clock; no polling. For group gen with `max_images > 1`, the response can take 60–120s — **set your HTTP client read timeout to ≥ 120s**. Or use `stream: true` to receive each image as it completes.
+9. **Active models as of 2026-05** — `doubao-seedream-5-0-260128` (latest; also acts as `doubao-seedream-5-0-lite-260128` per the docs note "同时支持"), `doubao-seedream-4-5-251128`, `doubao-seedream-4-0-250828`, `doubao-seedream-3-0-t2i-250415` (Retiring). 3.0 had a `-t2i-` infix that 4.0+ dropped — newer models unified t2i + i2i + multi-image in one model.
+10. **Rate limit: 500 images-per-minute per model** — generous for humans, tight for batch scripts. If you parallelize, back off on 429.
+11. **OpenAI-SDK compatible — but with Volcengine extras** — point the OpenAI client at Ark's base URL. `model / prompt / size / response_format / seed` work as-is. Volcengine-specific fields (`watermark`, `image` for i2i, `sequential_image_generation*`, `stream`, `tools`, `output_format`, `optimize_prompt_options`) go in `extra_body={...}` when using the OpenAI SDK; the native Ark SDK accepts them as top-level params.
+12. **`image` field accepts BOTH a string and an array** — single i2i: `"image": "https://..."`. Multi-image fusion (up to 14): `"image": ["url1", "url2", ...]`. The undocumented `image_url: {url:...}` shape (Seedance-style) is also accepted by Ark in our probe, but `image` is the official documented path — prefer it.
+13. **Reference image upload limits** — formats: jpeg / png / webp / bmp / tiff / gif / heic / heif. Aspect `[1/16, 16]`. Each side > 14 px. Single file ≤ 30 MB. Total pixels per image ≤ `6000×6000 = 36 M`. Up to 14 reference images per call. URLs must be **publicly fetchable** (TOS public-read buckets recommended); base64 inline supported but kills request bandwidth.
 
 ---
 
@@ -51,69 +59,37 @@ Authorization: Bearer <ARK_API_KEY>
 Content-Type: application/json
 ```
 
-Single endpoint, no separate sub-paths for variations / edits — i2i is just adding an image field to the same body. cn-beijing is the only region that ships Seedream today.
+Single endpoint serves text-to-image, i2i, multi-image fusion, group gen, streaming. cn-beijing is the only Ark region that ships Seedream today.
 
 ---
 
-## Quickstart — text-to-image, default 2K
+## Quickstart — text-to-image
 
 ```bash
-ARK_API_KEY=$(jq -r .ARK_API_KEY ~/.trove/seedream/credentials.json)
-
 curl -X POST https://ark.cn-beijing.volces.com/api/v3/images/generations \
   -H "Authorization: Bearer $ARK_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "doubao-seedream-5-0-260128",
-    "prompt": "a single red apple on a wooden table, studio lighting, photorealistic"
+    "prompt": "a single red apple on a wooden table, studio lighting, photorealistic",
+    "size": "2K",
+    "output_format": "png",
+    "watermark": false
   }'
 ```
 
-Response (sync, ~15-20s wall-clock):
+Response (sync, ~15–20s):
 
 ```json
 {
   "model": "doubao-seedream-5-0-260128",
   "created": 1778823643,
   "data": [
-    {
-      "url": "https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-5-0/...jpeg?X-Tos-Expires=86400&...",
-      "size": "2048x2048"
-    }
+    {"url": "https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/...png?X-Tos-Expires=86400&...", "size": "2048x2048"}
   ],
-  "usage": {
-    "generated_images": 1,
-    "output_tokens": 16384,
-    "total_tokens": 16384
-  }
+  "usage": {"generated_images": 1, "output_tokens": 16384, "total_tokens": 16384}
 }
 ```
-
-The `data[0].url` is a TOS-presigned URL valid for 24 hours. Download immediately if you need persistence.
-
-### Node / OpenAI SDK
-
-The Ark surface is OpenAI-SDK compatible — point the OpenAI client at Ark's base URL:
-
-```typescript
-import OpenAI from "openai";
-
-const ark = new OpenAI({
-  baseURL: "https://ark.cn-beijing.volces.com/api/v3",
-  apiKey: process.env.ARK_API_KEY,
-});
-
-const r = await ark.images.generate({
-  model: "doubao-seedream-5-0-260128",
-  prompt: "a single red apple on a wooden table",
-  // size: "2048x2048",      // optional — default
-  // response_format: "url", // default; pass "b64_json" for inline base64
-});
-
-console.log(r.data[0].url);
-```
-
-(Default Node `fetch` and OpenAI SDK both allow long timeouts, so 60s+ generations are fine without configuration.)
 
 ### Python / Ark SDK
 
@@ -121,104 +97,289 @@ console.log(r.data[0].url);
 import os
 from volcenginesdkarkruntime import Ark
 
-client = Ark(
-    base_url="https://ark.cn-beijing.volces.com/api/v3",
-    api_key=os.environ["ARK_API_KEY"],
-)
+client = Ark(base_url="https://ark.cn-beijing.volces.com/api/v3",
+             api_key=os.environ["ARK_API_KEY"])
 
 r = client.images.generate(
     model="doubao-seedream-5-0-260128",
     prompt="a single red apple on a wooden table",
+    size="2K",                       # or e.g. "2048x2048"
+    output_format="png",
+    response_format="url",
+    watermark=False,
 )
 print(r.data[0].url)
+```
+
+### Node / OpenAI SDK
+
+```typescript
+import OpenAI from "openai";
+const ark = new OpenAI({
+  baseURL: "https://ark.cn-beijing.volces.com/api/v3",
+  apiKey: process.env.ARK_API_KEY,
+});
+
+// OpenAI-spec fields native; Volcengine extras via extra_body
+const r = await ark.images.generate({
+  model: "doubao-seedream-5-0-260128",
+  prompt: "a single red apple on a wooden table",
+  size: "2K",
+  output_format: "png",
+  response_format: "url",
+  // @ts-ignore — extra_body is a Volcengine extension
+  extra_body: { watermark: false },
+});
+console.log(r.data[0].url);
 ```
 
 ---
 
 ## Top-level request body fields
 
-| field | values | default | meaning |
+| field | values | applies to | meaning |
 |---|---|---|---|
-| `model` | model ID or endpoint ID | (required) | `doubao-seedream-5-0-260128` (recommended), or your `ep-xxxx` |
-| `prompt` | string | (required) | The image description. Same language support as Seedance (zh/en + jp/id/es/pt on newer models) |
-| `size` | `<W>x<H>` string | `"2048x2048"` | Custom dimensions. **Must satisfy `W × H ≥ 3,686,400`**. Common: `2048x2048` (1:1), `2560x1440` (16:9), `1920x1920` (1:1 floor), `2880x1620` (16:9 plus) |
-| `response_format` | `"url"` / `"b64_json"` | `"url"` | URL is TOS-presigned 24h; b64_json returns inline base64 JPEG (no expiry, larger response) |
-| `seed` | int | random | Reproducibility seed |
-| `watermark` | bool | (model default) | When `false`, output has no Doubao watermark. When omitted, model default applies (Doubao mark on lower-right per most plans) |
-| `image` OR `image_url` | string URL or `{url: string}` | none | Reference image for i2i. Either shape accepted (string OpenAI-style, or `{url:}` Seedance-style). See "Image-to-image" below |
-| `n` | int | 1 | **Ignored** — Seedream always returns 1 image regardless of `n`. Loop your call if you need multiples |
+| `model` | model ID / endpoint ID | all | `doubao-seedream-5-0-260128` (recommended), or `ep-xxxx` |
+| `prompt` | string ≤ 300 zh chars / 600 en words | all | Image description. Excess length scatters attention |
+| `size` | `"1K"`/`"2K"`/`"3K"`/`"4K"` OR `"<W>x<H>"` | all | Shorthand = model picks pixel value; `WxH` = explicit. Must clear per-model min and stay ≤ 4096² |
+| `response_format` | `"url"` / `"b64_json"` | all | URL is 24h TOS-presigned; b64_json returns inline base64 |
+| `output_format` | `"png"` / `"jpeg"` | **5.0 lite only** | Defaults to `jpeg`. 4.5 / 4.0 are jpeg-only and ignore this |
+| `seed` | int | all | Reproducibility seed (same prompt + same seed → similar, not identical) |
+| `watermark` | bool | all | `false` to suppress the "AI 生成" mark; default in API is `false` per docs |
+| `image` | string URL **OR** array `[url, ...]` | all | i2i input. String = single ref. Array = multi-image fusion (≤ 14). Public URL or base64 data URI |
+| `sequential_image_generation` | `"auto"` / `"disabled"` | all | `"auto"` enables group output; default disabled |
+| `sequential_image_generation_options.max_images` | int 1–15 | when `auto` | Upper bound (NOT guaranteed count). Subject to `input_images + max_images ≤ 15` |
+| `stream` | bool | all | `true` streams events as each image completes — useful for group gen UX. Default `false` (one inline response) |
+| `tools` | `[{"type": "web_search"}]` | **5.0 lite only** | Lets the model query the web before generating. Search count in `usage.tool_usage.web_search` |
+| `optimize_prompt_options.mode` | `"standard"` / `"fast"` | **4.0 only** | Faster but lower-quality. 4.5 / 5.0 lite are standard-only |
+| `n` | — | none | **Not supported.** Use `sequential_image_generation` for multiple |
 
 ---
 
-## Image-to-image (i2i)
+## Use case recipes
 
-Pass a reference image alongside the prompt. Both shapes work — pick whichever your codebase already uses:
-
-### OpenAI-style (string)
-
-```bash
-curl -X POST https://ark.cn-beijing.volces.com/api/v3/images/generations \
-  -H "Authorization: Bearer $ARK_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "doubao-seedream-5-0-260128",
-    "prompt": "change the apple to green, keep the wooden table",
-    "image": "https://your-bucket.example.com/source.jpeg"
-  }'
-```
-
-### Seedance-style (object)
+### 1. Single-image i2i
 
 ```bash
 curl -d '{
   "model": "doubao-seedream-5-0-260128",
-  "prompt": "change the apple to green",
-  "image_url": {"url": "https://your-bucket.example.com/source.jpeg"}
+  "prompt": "change the apple to green, keep the wooden table and lighting unchanged",
+  "image": "https://your-bucket.example.com/source.jpeg",
+  "size": "2K",
+  "output_format": "png",
+  "watermark": false
 }' ...
 ```
 
-Both must point at a **publicly fetchable** URL — the model server pulls the source. TOS public-read buckets are recommended. Same face-moderation rules as Seedance: no real-person faces in input. Use the `asset://<asset-id>` scheme (from the Ark virtual portrait library / authorized real-person assets) when faces are required, OR use a Seedream-5.0-lite-generated face within 30 days as a whitelisted source.
+### 2. Multi-image fusion (clothing swap, character + scene, style transfer from N refs)
+
+```bash
+curl -d '{
+  "model": "doubao-seedream-5-0-260128",
+  "prompt": "put the outfit from 图2 on the model from 图1",
+  "image": [
+    "https://your-bucket.example.com/model.jpeg",
+    "https://your-bucket.example.com/outfit.jpeg"
+  ],
+  "size": "2K",
+  "output_format": "png",
+  "sequential_image_generation": "disabled",
+  "watermark": false
+}' ...
+```
+
+In the prompt, **reference images by "图N" position** (the doc convention) — `图1`, `图2`, etc. Numbering follows the order they appear in the `image` array. Don't use URLs or names in the prompt.
+
+### 3. Group image generation — 文生组图 (text-only → N coordinated images)
+
+```bash
+curl -d '{
+  "model": "doubao-seedream-5-0-260128",
+  "prompt": "generate 4 cinematic sci-fi storyboard panels: panel 1 astronaut repairing a ship outside a space station ...; panel 2 sudden meteor strike ...; panel 3 astronaut dodging ...; panel 4 wounded retreat to the ship",
+  "size": "2K",
+  "sequential_image_generation": "auto",
+  "sequential_image_generation_options": {"max_images": 4},
+  "output_format": "png",
+  "watermark": false
+}' ...
+```
+
+**Tip**: be explicit in the prompt about how many panels and what each contains. `max_images: 4` is a cap — if the prompt only describes 2 panels, you'll get 2 images.
+
+### 4. Group image generation — 图生组图 (1 ref + text → N coordinated images)
+
+Pair the same `sequential_image_generation` block with a single `image`:
+
+```bash
+curl -d '{
+  "model": "doubao-seedream-5-0-260128",
+  "prompt": "using this logo as the brand mark, design 4 brand-system mocks: tote bag, cap, business card, lanyard. Green primary palette, playful flat style",
+  "image": "https://your-bucket.example.com/logo.png",
+  "size": "2K",
+  "sequential_image_generation": "auto",
+  "sequential_image_generation_options": {"max_images": 4},
+  "output_format": "png",
+  "watermark": false
+}' ...
+```
+
+### 5. Group image generation — multi-ref → N coordinated images
+
+```bash
+curl -d '{
+  "model": "doubao-seedream-5-0-260128",
+  "prompt": "generate 3 images of the girl from 图1 with the cow plush from 图2 riding a roller coaster, morning / noon / evening lighting",
+  "image": [
+    "https://your-bucket.example.com/girl.png",
+    "https://your-bucket.example.com/plush.png"
+  ],
+  "size": "2K",
+  "sequential_image_generation": "auto",
+  "sequential_image_generation_options": {"max_images": 3},
+  "output_format": "png",
+  "watermark": false
+}' ...
+```
+
+### 6. Streaming — receive each image as it completes
+
+```python
+stream = client.images.generate(
+    model="doubao-seedream-5-0-260128",
+    prompt="参考图1，生成 4 张人物分别戴墨镜 / 骑摩托 / 戴帽子 / 拿棒棒糖的图片",
+    image="https://your-bucket.example.com/ref.png",
+    size="2K",
+    sequential_image_generation="auto",
+    sequential_image_generation_options=SequentialImageGenerationOptions(max_images=4),
+    output_format="png",
+    response_format="url",
+    stream=True,
+    watermark=False,
+)
+
+for event in stream:
+    if event is None: continue
+    if event.type == "image_generation.partial_succeeded":
+        print(f"got image: size={event.size}, url={event.url}")
+    elif event.type == "image_generation.partial_failed":
+        print(f"error: {event.error}")
+    elif event.type == "image_generation.completed":
+        print(f"all done: usage={event.usage}")
+    elif event.type == "image_generation.partial_image":
+        # streaming b64 partial frame
+        pass
+```
+
+Event types: `image_generation.partial_succeeded` (one image done), `image_generation.partial_failed` (one image errored), `image_generation.completed` (whole stream finished — usage totals here), `image_generation.partial_image` (b64 partial when response_format=b64_json).
+
+### 7. Web-search-augmented (5.0 lite only)
+
+```bash
+curl -d '{
+  "model": "doubao-seedream-5-0-260128",
+  "prompt": "make a 5-day weather forecast infographic for Shanghai, flat illustrated style",
+  "size": "2048x2048",
+  "tools": [{"type": "web_search"}],
+  "output_format": "png",
+  "watermark": false
+}' ...
+```
+
+Search count returns in `usage.tool_usage.web_search` (0 = model decided no search was needed). Increases latency; only available on Seedream 5.0 lite as of 2026-05.
+
+### 8. Prompt optimization mode (4.0 only — fast vs standard)
+
+```json
+{
+  "model": "doubao-seedream-4-0-250828",
+  "prompt": "...",
+  "optimize_prompt_options": {"mode": "fast"},
+  ...
+}
+```
+
+Faster generation at lower quality. Useful for iteration loops. Seedream 4.5 / 5.0 lite are standard-only — passing `mode: "fast"` to them either errors or is ignored.
 
 ---
 
-## Picking between 4.0 / 4.5 / 5.0
+## Recommended pixel values per model × ratio (from official tables)
+
+| AR | 1K (4.0 only) | 2K | 3K (5.0 lite only) | 4K |
+|---|---|---|---|---|
+| 1:1 | 1024×1024 | 2048×2048 | 3072×3072 | 4096×4096 |
+| 3:4 | 864×1152 | 1728×2304 | 2592×3456 | 3520×4704 |
+| 4:3 | 1152×864 | 2304×1728 | 3456×2592 | 4704×3520 |
+| 16:9 | 1312×736 | 2848×1600 | 4096×2304 | 5504×3040 |
+| 9:16 | 736×1312 | 1600×2848 | 2304×4096 | 3040×5504 |
+| 21:9 | 1568×672 | 3136×1344 | 4704×2016 | 6240×2656 |
+
+Pass `size: "2K"` etc. and the model picks the ratio from prompt context, OR pass the exact `WxH` string from this table for full control. Both styles work; **don't mix** (one or the other per request).
+
+---
+
+## Picking between 5.0 (latest) / 4.5 / 4.0
 
 | use case | pick |
 |---|---|
 | Default for new projects | `doubao-seedream-5-0-260128` |
-| Production with stable cost benchmarks | `doubao-seedream-4-5-251128` (lock to one version) |
-| Compatibility with older pipelines | `doubao-seedream-4-0-250828` |
-| Cheaper iteration (lite variant) | `doubao-seedream-5-0-lite-*` if listed in `GET /api/v3/models` for your account (controls Seedance face-trust whitelisting too) |
+| Need PNG output | `doubao-seedream-5-0-260128` (4.5 / 4.0 are jpeg-only) |
+| Need web search | `doubao-seedream-5-0-260128` (5.0 lite exclusive) |
+| Need 3K intermediate resolution | `doubao-seedream-5-0-260128` (4.5 / 4.0 skip 3K) |
+| Cheap iteration with small images | `doubao-seedream-4-0-250828` (1K supported; min pixels 921,600) |
+| Need fast mode (faster, lower quality) | `doubao-seedream-4-0-250828` (only model with `optimize_prompt_options.mode: "fast"`) |
+| Stable production version pinning | `doubao-seedream-4-5-251128` (mid-tier, well-balanced) |
+| Building Seedance face-trust chains | `doubao-seedream-5-0-260128` as `5-0-lite` — Seedance accepts its outputs as references for 30 days |
 
-All Seedream 4.0+ models share the same request schema — switching is purely a model-ID swap. 3.0 with the `-t2i-` infix is Retiring; not recommended for new code.
+All 4.0+ models share the same core request schema — switching is mostly a model-ID swap with optional capability differences (PNG, web search, optimize mode).
 
 ---
 
-## Cost estimation (token-per-pixel formula)
+## Cost estimation (token-per-pixel)
 
-**`output_tokens = width × height ÷ 256`**, verified empirically. So:
+**`output_tokens = width × height / 256`**, verified empirically. **Per output image** — group gen with `max_images: 4` returns up to 4 images and bills each.
 
-| size | total pixels | output tokens | relative cost |
+| size | total pixels | output tokens | relative |
 |---|---|---|---|
-| 1920×1920 (floor) | 3,686,400 | 14,400 | 0.88x baseline |
-| 2048×2048 (default) | 4,194,304 | 16,384 | 1.00x baseline |
-| 2560×1440 (16:9) | 3,686,400 | 14,400 | 0.88x baseline |
-| 2880×1620 (16:9+) | 4,665,600 | 18,225 | 1.11x baseline |
-| 4096×4096 | 16,777,216 | 65,536 | 4.00x baseline |
+| 1280×720 (4.0 min) | 921,600 | 3,600 | 0.22x |
+| 1920×1920 (5.0 floor) | 3,686,400 | 14,400 | 0.88x |
+| 2048×2048 (2K default) | 4,194,304 | 16,384 | 1.00x |
+| 2560×1440 (2K 16:9) | 3,686,400 | 14,400 | 0.88x |
+| 3072×3072 (3K 1:1) | 9,437,184 | 36,864 | 2.25x |
+| 4096×4096 (4K 1:1) | 16,777,216 | 65,536 | 4.00x |
 
-There is no per-image flat fee and no n-discount. Cost scales linearly with pixel area. Check current per-token pricing at https://www.volcengine.com/docs/82379/1544106.
+Group gen multiplies: `max_images: 4` at 2K each = up to 65,536 tokens. Check current per-token pricing at https://www.volcengine.com/docs/82379/1544106.
 
 ---
 
-## Trove cross-module pattern: Seedream → Seedance face chaining
+## Trove cross-module: Seedream → Seedance face chaining
 
-Seedance 2.0 rejects real-person faces in reference images, but **whitelists faces generated by Seedream 5.0 lite within the last 30 days, same account, original file**. This lets you keep character continuity across multiple Seedance clips:
+Seedance 2.0 rejects real-person faces in reference images, but **whitelists faces generated by Seedream 5.0 lite within the last 30 days, same account, original file**. Pipeline:
 
-1. **Seedream call** — text-to-image of your character at a reference pose, model = `doubao-seedream-5-0-lite-*` (the variant whose outputs are whitelisted; check `/api/v3/models` for the exact ID your account sees)
-2. **Persist the original file** to your own TOS bucket or local disk (re-encoding via screen-grab, format conversion, or a re-saved copy from a different tool breaks the trust signal)
-3. **Pass that public URL** as a `reference_image` in subsequent Seedance calls
+1. **Seedream** generates the reference face (text-only is fine — describe the character)
+2. **Persist the original file** to your own TOS bucket or local disk — do NOT re-encode, screen-grab, or convert through another tool (breaks the trust signal)
+3. **Pass that public URL** as a `reference_image` in subsequent Seedance video calls
+4. Combined with Seedance's `return_last_frame: true` you get character continuity across multi-clip Seedance pipelines without ever uploading a real-person photo
 
-Combined with `return_last_frame: true` on the Seedance side (returns the tail PNG of each generated clip), this gives you "consistent character → multi-clip story" without ever uploading a real person's face.
+---
+
+## Composite recipe: story book / comic generator
+
+The Volcengine console ships a "story book" feature that combines Doubao text + Seedream image in two stages. To replicate locally:
+
+1. **Stage 1 — text model**: call `doubao-seed-1.6` (chat completions API) with a system prompt that returns JSON of the form:
+   ```json
+   {
+     "title": "...",
+     "summary": "...",
+     "scenes": ["scene 1 narration", "scene 2 narration", ...],
+     "scenes_detail": ["图片1: composition + lighting + subject ...", "图片2: ...", ...]
+   }
+   ```
+   Cap scenes at 5–10. See the official tutorial's system prompt (link in "Source of truth" below) for the full prompt template.
+
+2. **Stage 2 — image model**: join `scenes_detail` array into one prompt string, append "create a cover image too; remove text from images", prepend any user-supplied style direction, then call Seedream with `sequential_image_generation: "auto"` and `max_images = len(scenes_detail) + 1`.
+
+3. **Stage 3 — assembly**: pair each returned image with its scene narration text — that's your story book.
 
 ---
 
@@ -226,23 +387,36 @@ Combined with `return_last_frame: true` on the Seedance side (returns the tail P
 
 | symptom | cause | fix |
 |---|---|---|
-| `400 InvalidParameter: image size must be at least 3686400 pixels` | requested size too small | use `2048x2048` (default), or any custom `WxH` with `W×H ≥ 3,686,400` |
-| `404 ModelNotOpen` | account hasn't activated this Seedream model | activate at https://console.volcengine.com/ark, or create an Endpoint ID for the model and pass that as `model` |
-| 30s request timeout from your HTTP client | Seedream takes 13–21s; default 30s in some Node fetch / requests configs cuts in mid-generation | bump client read timeout to ≥ 60s |
-| Got 1 image but asked for `n: 2` | `n` is silently ignored | loop the call N times instead |
-| Image URL returns 403 after a few hours | TOS presigned URL expired (24h) | download eagerly, OR use `response_format: "b64_json"` to skip URL entirely |
-| Output is JPEG, you need PNG | no `output_format` parameter — output is hard-coded JPEG | re-encode locally after download |
-| i2i result looks like text-to-image (input ignored) | source URL not publicly fetchable | confirm URL works in incognito browser; if behind auth, host it on a public TOS / S3 bucket |
+| `400 InvalidParameter: image size must be at least <N> pixels` | requested size below per-model min | use `2K` shorthand, or any explicit `WxH` clearing the min for your model (3.7M for 5.0/4.5, 921,600 for 4.0) |
+| `404 ModelNotOpen` | account hasn't activated this Seedream model | activate at https://console.volcengine.com/ark, or create an Endpoint ID |
+| Asked `max_images: 4`, got 1 | prompt didn't explicitly request multiple panels | rewrite prompt with explicit "generate 4 ..." count + per-scene descriptions |
+| 30s HTTP client timeout fires mid-gen | client default too short for group gen | bump read timeout to ≥ 120s, or use `stream: true` |
+| `output_format: "png"` ignored on 4.5 / 4.0 | only 5.0 lite supports PNG output | switch to `doubao-seedream-5-0-260128` if PNG required |
+| `n: 2` returns 1 image | `n` is not a Seedream field | use `sequential_image_generation: "auto"` + `max_images` |
+| Image URL returns 403 after a few hours | TOS presigned URL expired (24h) | download eagerly, OR use `response_format: "b64_json"` |
+| i2i result ignores input | source URL not publicly fetchable | confirm URL serves without auth (curl in a fresh shell, no cookies) |
+| `tools: [{"type":"web_search"}]` errors on 4.5 / 4.0 | only 5.0 lite supports web search | switch to `doubao-seedream-5-0-260128` |
+| `429` | hit 500 IPM rate limit | back off; parallel jobs need a rate limiter |
+| Group gen returns 14 images max | `input_images + outputs ≤ 15` (the quota cap) | reduce input refs or reduce `max_images` |
+
+---
+
+## SDK upgrade reminder
+
+If you're using the Ark Python SDK (`volcengine-python-sdk[ark]`) or Go SDK and seeing missing fields (`sequential_image_generation`, `optimize_prompt_options`, etc.), upgrade to the latest version. Volcengine adds new params to the API faster than SDKs catch up — pinning an old SDK locks you out of new features. The raw HTTP / OpenAI-SDK paths always work since they don't model the params.
 
 ---
 
 ## Source of truth (refresh when these change)
 
-- Volcengine Ark image generation overview — https://www.volcengine.com/docs/82379 (search "图像生成" / "Seedream")
-- Models list (live, account-scoped) — `GET https://ark.cn-beijing.volces.com/api/v3/models` with Bearer auth
+- Volcengine Ark Seedream tutorial (workflow + examples) — https://www.volcengine.com/docs/82379/1366799
+- Image generation API reference — https://www.volcengine.com/docs/82379/1541523
+- Live model list (account-scoped) — `GET https://ark.cn-beijing.volces.com/api/v3/models` with Bearer auth
+- Volcengine Ark experience center (try the UI first) — https://www.volcengine.com/experience/ark?mode=vision
 - API Key console — https://console.volcengine.com/ark/region:ark+cn-beijing/apikey
 - Model activation console — https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement
 - Pricing — https://www.volcengine.com/docs/82379/1544106
-- Seedance cross-references (i2i face-trust window) — see `library/seedance/module.md`
+- Prompt guide — https://www.volcengine.com/docs/82379/1829186
+- Cross-references for Seedance face whitelisting — see `library/seedance/module.md`
 
 Last upstream-docs sync: see `lastmod` in frontmatter. Last live-API verification: see `last_verified`.
