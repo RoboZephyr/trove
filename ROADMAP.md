@@ -56,7 +56,7 @@ Stack: Bun + Hono + HTMX + Tailwind CDN, server-side rendered.
 - [x] **npm module** (registry + publish workflow — dogfood from shipping `@robozephyr/trove` itself); covers token types, scoped-package private-by-default, bare-name squat, double-shebang trap, Bypass-2FA Granular Token, `NPM_CONFIG_USERCONFIG=<tempfile>` for non-interactive publish. `last_verified: production`
 - [x] `trove install <name>...` CLI sidecar — copy library modules into `~/.trove/`; `--list` shows available + installed status; `--force` to overwrite; idempotent
 - [ ] `trove install <git-url>` — install from arbitrary git repo (community modules); needed for the marketplace story but not for v1.0 launch
-- [ ] Re-verify the rest of the modules to production-grade `last_verified` — happens organically as maintainer (or contributors) use modules in real projects. Currently **5 production · 12 verified · 2 partial** out of 19
+- [ ] Re-verify the rest of the modules to production-grade `last_verified` — happens organically as maintainer (or contributors) use modules in real projects. Currently **5 production · 13 verified · 2 partial** out of 20
 
 ## v0.2.x → OSS launch prep (active)
 
