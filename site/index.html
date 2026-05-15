@@ -92,7 +92,7 @@
   <span><strong>20</strong> modules in library</span>
   <span><strong>~/.trove/</strong> on disk</span>
   <span><strong>0</strong> cloud accounts</span>
-  <span><strong>v0.2.3</strong> · 5 production modules</span>
+  <span><strong>v0.2.4</strong> · 5 production · 14 verified · 1 partial</span>
 </div>
 
 <p>No more re-pasting Stripe keys into a fresh <code>.env</code> for every project. No more re-explaining "this service has a quirk that bit me last time" to a fresh agent session. Add a service once at <code>~/.trove/&lt;service&gt;/</code>; reference it from any project's <code>CLAUDE.md</code> / <code>AGENTS.md</code> / <code>.cursorrules</code> with one line:</p>
@@ -102,6 +102,24 @@
 <p>The AI loads the module on session start. It now knows your Stripe key, the gotchas (amounts in cents, restricted keys over secret keys, idempotency-key requirement), and — if a Stripe MCP server is wired up — calls it directly.</p>
 
 <p><strong>No inject step. No init step. No per-agent shims.</strong> Trove is a plain directory; the AI is the runtime.</p>
+
+<h2>What's new in v0.2.4</h2>
+
+<p>Three new modules — all <em>live-verified</em>, not LLM-hallucinated. Module bodies built from real API calls during authoring; <code>last_verified</code> records token counts, wall-clock, and the exact gotchas found.</p>
+
+<p><strong><code>seedance</code></strong> · Doubao Seedance 2.0 — ByteDance Volcengine multimodal video gen (text + up to 9 images + 3 videos + 3 audios → 4–15s clip). Async tasks, token-billed.</p>
+<pre>"Use seedance to generate a 5s 720p product video: morning kitchen,
+hands holding a steaming mug, slow push-in, ambient piano."</pre>
+
+<p><strong><code>seedream</code></strong> · Doubao Seedream 4.0 / 4.5 / 5.0 — Volcengine image gen. Multi-image fusion (up to 14 refs), group output (N coordinated images in one call), streaming, web-search-augmented (5.0 lite). Sync, ~15–30s per image.</p>
+<pre>"Use seedream to generate 4 brand-system mocks (tote bag, cap,
+business card, lanyard) from this logo. Green primary palette."</pre>
+
+<p><strong><code>ngrok</code></strong> · Dev tunneling. Free tier now ships one stable <code>*.ngrok-free.dev</code> reserved subdomain per account (discovered live during smoke; corrected pre-2025 docs that say "every restart is random"). Two credentials, deliberately documented as distinct: <code>NGROK_AUTHTOKEN</code> for the agent, <code>NGROK_API_KEY</code> for the management REST API.</p>
+<pre>"Open an ngrok tunnel to my local server on :4242 so Stripe
+webhooks can hit it during dev."</pre>
+
+<p>Plus, on the infra side: <a href="https://github.com/RoboZephyr/trove/blob/main/.github/workflows/ci.yml">CI workflow</a> runs typecheck + validate on every PR; <a href="https://github.com/RoboZephyr/trove/blob/main/SECURITY.md">SECURITY.md</a> documents the private vulnerability flow; <a href="https://github.com/RoboZephyr/trove/blob/main/SPEC.md">SPEC.md §0–§4</a> translated to English (the schema-facing half — §5+ remains in Chinese as historical dogfood evidence).</p>
 
 <h2>How it works</h2>
 

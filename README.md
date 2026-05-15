@@ -79,7 +79,7 @@ The `${credential.X}` substitution resolves to the field's value (string fields)
 
 ## Status
 
-**v0.2.3** — Web UI shipped, 20 modules in `library/` gated by `last_verified` (5 production · 13 verified · 2 partial). SPEC §2.3 file-type credentials live (`trove migrate` relocates legacy multiline-string blobs into stable `files/<KEY>.<ext>` paths). `trove install <name>...` headless installer. Format spec is stable; AI-assisted module authoring (v0.3) in progress.
+**v0.2.4** — 20 modules in `library/` gated by `last_verified` (5 production · 14 verified · 1 partial). New since v0.2.3: `seedance` (Doubao Seedance 2.0 video), `ngrok` (dev tunneling), `seedream` (Doubao Seedream image gen — incl. multi-image fusion / group output / streaming / web-search). Plus CI on every PR (`.github/workflows/ci.yml`), `SECURITY.md` vuln reporting policy, SPEC.md §0–§4 English translation. Format spec is stable; AI-assisted module authoring (v0.3) in progress.
 
 See:
 - [SPEC.md](./SPEC.md) — full format specification (Chinese, English translation forthcoming)
