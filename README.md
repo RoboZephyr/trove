@@ -79,7 +79,7 @@ The `${credential.X}` substitution resolves to the field's value (string fields)
 
 ## Status
 
-**v0.2.3** — Web UI shipped, 18 modules in `library/` gated by `last_verified` (5 production · 11 verified · 2 partial). SPEC §2.3 file-type credentials live (`trove migrate` relocates legacy multiline-string blobs into stable `files/<KEY>.<ext>` paths). `trove install <name>...` headless installer. Format spec is stable; AI-assisted module authoring (v0.3) in progress.
+**v0.2.3** — Web UI shipped, 19 modules in `library/` gated by `last_verified` (5 production · 12 verified · 2 partial). SPEC §2.3 file-type credentials live (`trove migrate` relocates legacy multiline-string blobs into stable `files/<KEY>.<ext>` paths). `trove install <name>...` headless installer. Format spec is stable; AI-assisted module authoring (v0.3) in progress.
 
 See:
 - [SPEC.md](./SPEC.md) — full format specification (Chinese, English translation forthcoming)

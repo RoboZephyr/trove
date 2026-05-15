@@ -15,7 +15,9 @@ export async function runInstall(args: string[]): Promise<number> {
       "Usage:\n" +
         "  trove install <module>...     # install one or more named modules from the bundled library\n" +
         "  trove install --list          # list every available library module\n" +
-        "  trove install --all           # install every library module (rarely what you want)\n\n" +
+        "  trove install --all           # install every library module (rarely what you want)\n" +
+        "  trove install <m> --force     # re-copy the library's module.md over the installed one\n" +
+        "                                # (preserves credentials.json and any other user-added files)\n\n" +
         "After install: fill credentials via `trove ui` or by editing ~/.trove/<module>/credentials.json directly.",
     );
     return args.length === 0 ? 1 : 0;

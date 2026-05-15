@@ -13,7 +13,7 @@ applies_to:
   - serving a TCP service (SSH / RDP / Postgres / game server) via ngrok edge
 trove_spec: "0.1"
 lastmod: "2026-05-14"
-last_verified: "2026-05-15 · E2E live tunnel — `ngrok http :9876` against local python3 -m http.server, public URL `https://*.ngrok-free.dev` served local content byte-for-byte. Management API smoke: `GET /credentials` returned account inventory (HTTP 200, `ngrok-version: 2` header confirmed mandatory). ngrok CLI v3.36.1. Free-tier subdomain TLD is `.ngrok-free.dev` (NOT `.ngrok-free.app` which appears in older docs)"
+last_verified: "2026-05-15 · E2E live tunnel — `ngrok http :9876` against local python3 -m http.server, public URL `https://<adj>-<adj>-<noun>.ngrok-free.dev` served local content byte-for-byte. Management API smoke: `GET /credentials` returned account inventory (HTTP 200, `ngrok-version: 2` header confirmed mandatory). `GET /reserved_domains` confirmed the free-tier account is auto-provisioned with 1 stable subdomain at signup (description: 'Your dev domain') — restart-stable, not random. ngrok CLI v3.36.1. Subdomain TLD is `.ngrok-free.dev` (NOT `.ngrok-free.app` of older docs)"
 
 credentials:
   NGROK_AUTHTOKEN:
@@ -31,7 +31,7 @@ credentials:
 ## ⚠️ Critical Constraints (read before writing code)
 
 1. **There are TWO credentials and they are not the same** — `NGROK_AUTHTOKEN` is for the **agent** (the `ngrok` CLI binary that opens tunnels). `NGROK_API_KEY` is for the **management API** (https://api.ngrok.com — for scripting reserved domains, listing abuse reports, etc.). They come from two different dashboard pages, use two different setup commands, and authenticate two different services. **#1 reason a new integration fails with 401.**
-2. **Free tier: every restart gets a new random URL** — `https://<random>.ngrok-free.dev`. If you put the URL into a webhook config (Stripe / GitHub), you'll re-paste it after every `ngrok http` restart. The fix is a paid plan + reserved domain (`--url=https://yourname.ngrok.dev`), which survives restarts.
+2. **Free tier gives you ONE stable reserved domain per account, then random URLs beyond that** — every new ngrok account is auto-provisioned with one reserved subdomain like `<adj>-<adj>-<noun>.ngrok-free.dev` (description: "Your dev domain", visible at https://dashboard.ngrok.com/domains and via `GET /reserved_domains` on the management API). Your **first** `ngrok http` on the free plan picks up this stable subdomain — so the URL DOES survive restarts as long as no other tunnel is using it. Random `*.ngrok-free.dev` URLs only kick in for **additional concurrent tunnels** beyond the first, OR if you've already started one and try a second without specifying `--url`. For webhook configs (Stripe / GitHub), drop this stable domain into the provider once and you're done — no re-paste loop. (Older docs / tutorials describe "every restart is random" — that was the pre-2025 behavior.)
 3. **`ngrok tcp` requires a payment method on file** — even on the free plan, TCP tunnels are gated behind "valid payment method." HTTP / HTTPS tunnels work without one.
 4. **v3 deprecated `--basic-auth` / `--oauth` / `--cidr-allow` / `--ip-restriction` flags** — use a traffic policy file instead: `--traffic-policy-file tp.yml` or `--traffic-policy-url`. The old flags still work but emit deprecation warnings and won't be in v4.
 5. **v3 deprecated `--domain` / `--hostname` / `--subdomain`** — use `--url=` instead: `ngrok http 8080 --url=https://x.ngrok.dev`. Old flags still parsed for now; new docs only show `--url`.
@@ -92,22 +92,38 @@ The `ngrok api ...` subcommands now work without further auth.
 
 ## Common patterns
 
-### HTTP tunnel — random URL (free plan default)
+### HTTP tunnel — uses your account's stable free-tier subdomain
 
 ```bash
 ngrok http 8080
-# → Forwarding https://b3a7-203-0-113-42.ngrok-free.dev -> http://localhost:8080
+# → Forwarding https://<your-adj-adj-noun>.ngrok-free.dev -> http://localhost:8080
 ```
 
-The forwarding URL changes every restart. For webhook dev where the URL is one-shot (paste into provider config, fire one test event, done) this is fine.
+On the free plan, your first concurrent tunnel auto-binds to the account's one reserved `*.ngrok-free.dev` subdomain (provisioned at signup). Restart-stable — drop the URL into a webhook config once.
 
-### HTTP tunnel — reserved domain (paid plan)
+Find your account's reserved domain at https://dashboard.ngrok.com/domains, or via:
 
 ```bash
-ngrok http 8080 --url=https://yourname.ngrok.dev
+curl https://api.ngrok.com/reserved_domains \
+  -H "Authorization: Bearer $NGROK_API_KEY" \
+  -H "ngrok-version: 2" | jq -r '.reserved_domains[].domain'
 ```
 
-The URL is stable across restarts. Reserve domains at https://dashboard.ngrok.com/cloud-edge/domains or via the management API (see "Management API" below).
+### HTTP tunnel — random URL (when you need an extra concurrent tunnel)
+
+```bash
+ngrok http 8080 --url=https://random-extra.ngrok-free.dev
+```
+
+If you need a second tunnel while the first is using your reserved subdomain, ngrok will issue a random `*.ngrok-free.dev` URL for the additional one. That URL is per-session and changes on restart.
+
+### HTTP tunnel — custom reserved domain (paid plan)
+
+```bash
+ngrok http 8080 --url=https://api.yourdomain.com
+```
+
+Custom domains (your own DNS, CNAME'd to ngrok edges) require a paid plan. Reserve via the dashboard or the management API.
 
 ### TCP tunnel — SSH, Postgres, game servers
 
