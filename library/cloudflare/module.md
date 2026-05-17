@@ -94,6 +94,36 @@ curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/pages
   -d '{"name":"my-subdomain.example.com"}'
 ```
 
+**坑 3：`wrangler pages deploy` 默认把多行 commit message 喂给 CF，CF 拒**。CF Pages deployment API 不接受带换行的 commit message，wrangler 默认会跑 `git log -1` 把 subject + body 整块发过去。**只要本次 commit 写了 body**（git 标准格式 = subject + 空行 + body），deploy 末段就会报：
+
+```
+✘ A request to the Cloudflare API failed.
+  Invalid commit message, it must be a valid UTF-8 string. [code: 8000111]
+```
+
+**错误信息有误导性**——内容本身是合法 UTF-8（中文/emoji 都行），CF 真正拒的是**换行符**。
+
+**修法**（任选）：
+
+```bash
+# 方法 A：每次手动只取 subject 行
+npx wrangler pages deploy . --project-name my-site \
+  --commit-message "$(git log -1 --pretty=%s)" --commit-dirty=false
+
+# 方法 B：在项目里写个 scripts/deploy.sh，把这事儿封装一次（推荐）
+cat > scripts/deploy.sh <<'EOF'
+#!/bin/sh
+set -e
+cd "$(dirname "$0")/.."
+SUBJECT=$(git log -1 --pretty=%s)
+npx wrangler pages deploy . --project-name my-site \
+  --commit-message "$SUBJECT" --commit-dirty=false
+EOF
+chmod +x scripts/deploy.sh
+```
+
+**注意 wrangler 4.x 还没修这个**——这是 wrangler 应该做的 sanitize（截掉换行 / 只取 subject），它没做。文件已经会上传到 blob storage，只是 deployment 记录没建出来，所以**重试不会重复上传**，只会再次失败在最后一步。
+
 **常见坑**：
 - 第一次 deploy 会自动建 project，但默认绑定 `main` 分支——如果你本地不在 main，加 `--branch <name>` 显式指定
 - Pages 单文件 ≤ 25 MB，单 deploy 总文件数 ≤ 20000；超了静默失败，没有提前校验
@@ -411,5 +441,7 @@ npx wrangler kv namespace create MY_KV
 | 7000 | No route for requested host | 路径里 zone_id 错了 |
 | 81044 | Record name conflict | DNS 同名同类型记录已存在 |
 | 7003 | Could not route to /xxx | API 路径打错（少 /accounts 段最常见）|
+| 8000007 | Project not found | Pages 项目还没建，先 POST `/accounts/{aid}/pages/projects` |
+| 8000111 | "Invalid commit message, it must be a valid UTF-8 string" | **不是 UTF-8 问题**，是 commit message 带了换行（subject + body）。Pages deploy 时只取 subject 喂给 `--commit-message`，详见 Pages 部署「坑 3」 |
 
 **Debug 第一步永远是**：把 response body 完整 print，CF 错误信息很详细。
