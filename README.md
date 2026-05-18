@@ -81,7 +81,7 @@ The `${credential.X}` substitution resolves to the field's value (string fields)
 
 ## Status
 
-**v0.2.4** — 21 modules in `library/` gated by `last_verified` (5 production · 14 verified · 2 partial). New since v0.2.3: `seedance` (Doubao Seedance 2.0 video), `ngrok` (dev tunneling), `seedream` (Doubao Seedream image gen — incl. multi-image fusion / group output / streaming / web-search), `dashscope` (Alibaba CosyVoice TTS + voice cloning + Wanx image gen). Plus CI on every PR (`.github/workflows/ci.yml`), `SECURITY.md` vuln reporting policy, SPEC.md §0–§4 English translation. Format spec is stable; AI-assisted module authoring (v0.3) in progress.
+**v0.2.4** — 22 modules in `library/` gated by `last_verified` (5 production · 15 verified · 2 partial). New since v0.2.3: `seedance` (Doubao Seedance 2.0 video), `ngrok` (dev tunneling), `seedream` (Doubao Seedream image gen — incl. multi-image fusion / group output / streaming / web-search), `dashscope` (Alibaba CosyVoice TTS + voice cloning + Wanx image gen), `volcengine-tos` (S3-compatible object storage — the bridge for hosting Seedance / Seedream reference images at public URLs). Plus CI on every PR (`.github/workflows/ci.yml`), `SECURITY.md` vuln reporting policy, SPEC.md §0–§4 English translation. Format spec is stable; AI-assisted module authoring (v0.3) in progress.
 
 See:
 - [SPEC.md](./SPEC.md) — full format specification (Chinese, English translation forthcoming)
