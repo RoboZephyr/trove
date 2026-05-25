@@ -134,7 +134,7 @@
 <pre class="ascii">     _
     | |_ ___ _____   _____
     |  _|  _|  _  |_|   -|
-    |_| |_| |_____|_|___/   v0.2.4 — 24 modules, live-verified
+    |_| |_| |_____|_|___/   v0.2.5 — 24 modules, live-verified
 </pre>
 
 <h1>Trove</h1>
@@ -194,44 +194,51 @@ trove ui     # → http://127.0.0.1:7821</pre>
   </div>
 </div>
 
-<h2>What's new in v0.2.4</h2>
+<h2>What's new in v0.2.5</h2>
 
-<p>Three new modules — all <em>live-verified</em>, not LLM-hallucinated. Module bodies built from real API calls during authoring; <code>last_verified</code> records token counts, wall-clock, and exact gotchas.</p>
+<p>Four new modules — all built from real API probing, with the gotchas baked into <code>last_verified</code>. The killer pattern: <strong>Seedream</strong> generates an image → <strong>volcengine-tos</strong> hosts it at a public URL → <strong>Seedance</strong> animates it with audio → <strong>volcengine-speech</strong> transcribes to verify the audio matches your script. Full Volcengine AI loop, no external dependencies.</p>
 
 <div class="cards">
 
   <div class="card">
-    <h3>seedance <span class="badge">verified</span></h3>
-    <p>Doubao Seedance 2.0 — Volcengine multimodal video gen (text + up to 9 images + 3 videos + 3 audios → 4–15s clip). Async tasks, token-billed.</p>
-    <pre>Use seedance to generate
-a 5s 720p product video:
-morning kitchen, hands
-holding a steaming mug,
-slow push-in.</pre>
+    <h3>dashscope <span class="badge">partial</span></h3>
+    <p>Alibaba Bailian — CosyVoice TTS (150+ Chinese voice presets + free voice cloning) and Wanx image gen. WebSocket-based, char-billed.</p>
+    <pre>Use dashscope CosyVoice
+to synthesize "你好世界"
+with voice longxing_v3
+in mp3 22kHz.</pre>
   </div>
 
   <div class="card">
-    <h3>seedream <span class="badge">verified</span></h3>
-    <p>Doubao Seedream 4.0 / 4.5 / 5.0 image gen. Multi-image fusion (up to 14 refs), group output, streaming, web-search-augmented. Sync, ~15–30s per image.</p>
-    <pre>Use seedream to make
-4 brand-system mocks
-(tote bag, cap, card,
-lanyard) from this logo.
-Green primary palette.</pre>
+    <h3>volcengine-tos <span class="badge">verified</span></h3>
+    <p>S3-compatible object storage on Volcengine. The bridge module — upload images / audios to a public-read bucket so Seedance + Seedream can reference them at <code>tos-cn-beijing.volces.com</code> URLs.</p>
+    <pre>Upload this image to my
+TOS bucket public-read and
+give me the URL to pass
+into Seedance as first_frame.</pre>
   </div>
 
   <div class="card">
-    <h3>ngrok <span class="badge">verified</span></h3>
-    <p>Dev tunneling. Free tier ships one stable <code>*.ngrok-free.dev</code> reserved subdomain — corrected against old "every restart is random" docs via live smoke.</p>
-    <pre>Open an ngrok tunnel
-to my local server on
-:4242 so Stripe webhooks
-can hit it during dev.</pre>
+    <h3>volcengine-speech <span class="badge">verified</span></h3>
+    <p>ByteDance Seed-ASR 2.0 — batch audio transcription with utterance + word timestamps. The QA companion: diff transcribed audio against your target script to catch divergence.</p>
+    <pre>Transcribe this mp3 via
+Seed-ASR and tell me if
+the spoken words match
+my target subtitle text.</pre>
+  </div>
+
+  <div class="card">
+    <h3>aitoearn <span class="badge">partial</span></h3>
+    <p>One-call publish to 14 social platforms via unified MCP (TikTok / YouTube / X / Bilibili / Douyin / WeChat / etc). OAuth relay borrows official platform credentials.</p>
+    <pre>Publish my video to TikTok,
+YouTube, X, and Pinterest
+via aitoearn, with
+per-platform variants.</pre>
   </div>
 
 </div>
 
-<p>Plus, on the infra side: <a href="https://github.com/RoboZephyr/trove/blob/main/.github/workflows/ci.yml">CI workflow</a> runs typecheck + validate on every PR; <a href="https://github.com/RoboZephyr/trove/blob/main/SECURITY.md">SECURITY.md</a> documents the private vulnerability flow; <a href="https://github.com/RoboZephyr/trove/blob/main/SPEC.md">SPEC.md §0–§4</a> translated to English (the schema-facing half — §5+ remains in Chinese as historical dogfood evidence).</p>
+<p>Plus: <code>library/cloudflare</code> extended with the <strong>CF Pages source-repo silent-PATCH trap</strong> + ordered delete+recreate runbook (real dogfood: <code>PATCH /pages/projects/{name}</code> returns success but doesn't update the source field). Site now lives at <code>trove.robozephyr.com</code> (brand-aligned with the <code>@robozephyr/</code> npm scope) with SVG favicon, Apple touch icon, and auto-deploy on every push.</p>
 
 <h2>How it works</h2>
 
@@ -353,7 +360,7 @@ can hit it during dev.</pre>
 
 <h2>Status</h2>
 
-<p>v0.2.4 — the format spec is stable, all 24 modules are gated by <code>last_verified</code>, and the maintainer dogfoods trove daily across personal projects. AI-assisted module authoring (v0.3) and a marketplace for community modules (v1.0) are next.</p>
+<p>v0.2.5 — the format spec is stable, all 24 modules are gated by <code>last_verified</code>, and the maintainer dogfoods trove daily across personal projects. AI-assisted module authoring (v0.3) and a marketplace for community modules (v1.0) are next.</p>
 
 <p>The repo is <a href="https://github.com/RoboZephyr/trove">github.com/RoboZephyr/trove</a> — issues, PRs, and module additions welcome (see <a href="https://github.com/RoboZephyr/trove/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for the quality bar).</p>
 
