@@ -129,6 +129,89 @@ chmod +x scripts/deploy.sh
 - Pages 单文件 ≤ 25 MB，单 deploy 总文件数 ≤ 20000；超了静默失败，没有提前校验
 - Pages 自动启用 HTTPS，但自定义域名要去 dash 加（API 路径：`/accounts/{aid}/pages/projects/{name}/domains`）
 
+### 换 source repo（已有 project，reuse name + domains）
+
+**⚠️ Critical trap**: `PATCH /pages/projects/{name}` 把 `source.config.repo_name` / `repo_id` 写进 body，**CF 返回 `success: true` 但不更新 source 字段**。GET 回来还是老 repo。`build_config` 这种字段 PATCH 正常生效——只有 `source` 这块是 silently read-only（连 explicit `repo_id` + `owner_id` 都没用）。Dashboard 同样**没有** "change source / disconnect" 按钮（Settings → General 页只有 Rename / Notifications / Preview access / Delete）。
+
+唯一可行路径：**delete + recreate**（POST CREATE 时 `source` 字段是可写的）。流程必须严格按下面顺序，不然会卡：
+
+```bash
+PROJECT="my-site"
+BASE="https://api.cloudflare.com/client/v4"
+AUTH="Authorization: Bearer $CF_API_TOKEN"
+
+# 0) 先用 throwaway 名 probe，确认 CREATE 真的接受 source 字段
+#    （1 分钟成本买"CREATE 也偷偷忽略 source 怎么办"的兜底）
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" \
+  "$BASE/accounts/$CF_ACCOUNT_ID/pages/projects" \
+  -d '{
+    "name": "'"$PROJECT"'-probe",
+    "production_branch": "main",
+    "source": {
+      "type": "github",
+      "config": {"owner": "new-org", "repo_name": "new-repo", "production_branch": "main"}
+    },
+    "build_config": {"destination_dir": "dist"}
+  }' | jq '.result.source.config.repo_name'  # 应该返回 "new-repo"
+curl -X DELETE -H "$AUTH" "$BASE/accounts/$CF_ACCOUNT_ID/pages/projects/$PROJECT-probe"
+
+# 1) 解绑所有 custom domains —— 不解绑直接 DELETE project 报 8000028
+#    "To delete your project, you must first delete all custom domains"
+curl -X DELETE -H "$AUTH" \
+  "$BASE/accounts/$CF_ACCOUNT_ID/pages/projects/$PROJECT/domains/example.com"
+curl -X DELETE -H "$AUTH" \
+  "$BASE/accounts/$CF_ACCOUNT_ID/pages/projects/$PROJECT/domains/www.example.com"
+
+# 2) DELETE project
+curl -X DELETE -H "$AUTH" \
+  "$BASE/accounts/$CF_ACCOUNT_ID/pages/projects/$PROJECT"
+
+# 3) CREATE with new source —— 同名复用，subdomain 不变，所以 DNS CNAME 不用动
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" \
+  "$BASE/accounts/$CF_ACCOUNT_ID/pages/projects" \
+  -d '{
+    "name": "'"$PROJECT"'",
+    "production_branch": "main",
+    "source": {
+      "type": "github",
+      "config": {
+        "owner": "new-org",
+        "repo_name": "new-repo",
+        "production_branch": "main",
+        "deployments_enabled": true,
+        "production_deployments_enabled": true,
+        "pr_comments_enabled": true,
+        "preview_deployment_setting": "all",
+        "preview_branch_includes": ["*"],
+        "preview_branch_excludes": [],
+        "path_includes": ["*"],
+        "path_excludes": []
+      }
+    },
+    "build_config": {"build_command": "", "destination_dir": "dist", "root_dir": ""},
+    "deployment_configs": {
+      "production": {"compatibility_date": "2026-04-26", "fail_open": true},
+      "preview":    {"compatibility_date": "2026-04-26", "fail_open": true}
+    }
+  }'
+
+# 4) 重新绑 custom domains
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" \
+  "$BASE/accounts/$CF_ACCOUNT_ID/pages/projects/$PROJECT/domains" \
+  -d '{"name":"example.com"}'
+curl -X POST -H "$AUTH" -H "Content-Type: application/json" \
+  "$BASE/accounts/$CF_ACCOUNT_ID/pages/projects/$PROJECT/domains" \
+  -d '{"name":"www.example.com"}'
+
+# 5) ⚠️ CREATE 不会自动 trigger 首次 deploy —— 必须显式触发
+curl -X POST -H "$AUTH" \
+  "$BASE/accounts/$CF_ACCOUNT_ID/pages/projects/$PROJECT/deployments?branch=main"
+```
+
+**Downtime 窗口**：从 step 1 第一个 domain 解绑开始，到 step 4 全部 domain 重绑完 + SSL active 结束。同名复用 + API 连续执行，实际不可访问窗口 ≈ SSL provision 时间（典型 3–10 min）。Cloudflare Access auth gate 之类的域名层设置在 domain 重绑时自动保留，不丢。
+
+**为什么不能并行新建项目然后切 domain**：Pages 项目的 `pages.dev` subdomain 跟项目名绑定。同名复用 = 同 subdomain = DNS CNAME 不用改。换名会触发 DNS CNAME 改字符串（详见上面"坑 2"），反而更慢。
+
 ### 直接 API（CI 场景，不用 wrangler）
 
 ```typescript

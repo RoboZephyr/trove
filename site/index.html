@@ -134,7 +134,7 @@
 <pre class="ascii">     _
     | |_ ___ _____   _____
     |  _|  _|  _  |_|   -|
-    |_| |_| |_____|_|___/   v0.2.4 — 22 modules, live-verified
+    |_| |_| |_____|_|___/   v0.2.4 — 24 modules, live-verified
 </pre>
 
 <h1>Trove</h1>
@@ -147,7 +147,7 @@
 </div>
 
 <div class="stat-row">
-  <span><strong>22</strong> modules in library</span>
+  <span><strong>24</strong> modules in library</span>
   <span class="dot-sep">·</span>
   <span><strong>5</strong> production <span class="dot-sep">·</span> <strong>14</strong> verified <span class="dot-sep">·</span> <strong>1</strong> partial</span>
   <span class="dot-sep">·</span>
@@ -179,7 +179,7 @@
     <span class="step-num">02</span>
     <div class="step-body">
       <p><strong>Install a module + open the Web UI to fill credentials</strong></p>
-      <p class="meta">Pick from 22 bundled modules (or <code>trove install --list</code> to browse). The UI binds to <code>127.0.0.1:7821</code> only — never public.</p>
+      <p class="meta">Pick from 24 bundled modules (or <code>trove install --list</code> to browse). The UI binds to <code>127.0.0.1:7821</code> only — never public.</p>
       <pre>trove install stripe
 trove ui     # → http://127.0.0.1:7821</pre>
     </div>
@@ -264,7 +264,7 @@ can hit it during dev.</pre>
 
 <ul>
   <li><strong>Modules</strong> — your installed modules grouped by category with credential-status indicators</li>
-  <li><strong>Library</strong> — 22 bundled module templates, one-click Install copies <code>module.md</code> into <code>~/.trove/</code></li>
+  <li><strong>Library</strong> — 24 bundled module templates, one-click Install copies <code>module.md</code> into <code>~/.trove/</code></li>
   <li><strong>Credentials form</strong> — masked password fields with reveal toggle, file-type fields with present/replace/delete widget, inline save via HTMX</li>
   <li><strong>Module detail</strong> — frontmatter + rendered skill markdown side-by-side, with <code>last_verified</code> tier dot</li>
 </ul>
@@ -286,7 +286,7 @@ can hit it during dev.</pre>
 
 <h2>What's in the library</h2>
 
-<p>Every module carries a <code>last_verified</code> field — what was actually tested, by whom, when. Dot color reflects current state. We'd rather ship 22 honest modules than 50 LLM-hallucinated ones.</p>
+<p>Every module carries a <code>last_verified</code> field — what was actually tested, by whom, when. Dot color reflects current state. We'd rather ship 24 honest modules than 50 LLM-hallucinated ones.</p>
 
 <div class="legend">
   <span><span class="vdot vdot-prod"></span>production · daily-use</span>
@@ -331,6 +331,12 @@ can hit it during dev.</pre>
   <span class="name"><span class="vdot vdot-prod"></span>github-account</span>
   <span class="name"><span class="vdot vdot-prod"></span>npm</span>
   <span class="name"><span class="vdot vdot-ver"></span>ngrok</span>
+
+  <div class="cat">speech · transcription</div>
+  <span class="name"><span class="vdot vdot-ver"></span>volcengine-speech</span>
+
+  <div class="cat">social-publishing</div>
+  <span class="name"><span class="vdot vdot-par"></span>aitoearn</span>
 </div>
 
 <p>Each module ships with a <em>gotchas-first</em> skill body — auth header quirks, billing pitfalls, error-code tables — so the AI doesn't have to rediscover the same trap that bit the last engineer.</p>
@@ -339,7 +345,7 @@ can hit it during dev.</pre>
 
 <ul>
   <li><a href="https://github.com/RoboZephyr/trove/blob/main/SPEC.md">SPEC</a> — the format definition (frontmatter schema, reference syntax, runtime conventions). Includes a living <em>convention adherence log</em> in §10 of real dogfood lessons from production.</li>
-  <li><a href="https://github.com/RoboZephyr/trove/tree/main/library">library/</a> — the 22 bundled modules listed above</li>
+  <li><a href="https://github.com/RoboZephyr/trove/tree/main/library">library/</a> — the 24 bundled modules listed above</li>
   <li><a href="https://github.com/RoboZephyr/trove/blob/main/ROADMAP.md">ROADMAP</a> — phases and explicit non-goals (no <code>trove init</code>, no inject step, no SaaS — ever)</li>
   <li><a href="https://github.com/RoboZephyr/trove/blob/main/CONTRIBUTING.md">CONTRIBUTING</a> — module quality bar</li>
   <li><a href="https://github.com/RoboZephyr/trove/blob/main/docs/design-v0.2.md">design-v0.2.md</a> — why the Web UI dropped AI-chat features (chat IS the entry interface; UI is the visualization)</li>
@@ -347,7 +353,7 @@ can hit it during dev.</pre>
 
 <h2>Status</h2>
 
-<p>v0.2.4 — the format spec is stable, all 22 modules are gated by <code>last_verified</code>, and the maintainer dogfoods trove daily across personal projects. AI-assisted module authoring (v0.3) and a marketplace for community modules (v1.0) are next.</p>
+<p>v0.2.4 — the format spec is stable, all 24 modules are gated by <code>last_verified</code>, and the maintainer dogfoods trove daily across personal projects. AI-assisted module authoring (v0.3) and a marketplace for community modules (v1.0) are next.</p>
 
 <p>The repo is <a href="https://github.com/RoboZephyr/trove">github.com/RoboZephyr/trove</a> — issues, PRs, and module additions welcome (see <a href="https://github.com/RoboZephyr/trove/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for the quality bar).</p>
 
