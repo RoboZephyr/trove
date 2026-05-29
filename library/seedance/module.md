@@ -405,6 +405,42 @@ A face that Seedance 2.0 / Fast generated, or that Seedream 5.0 lite generated a
 
 ---
 
+## Production QA: audio vs script drift (post-generation verification)
+
+When `generate_audio: true` (the default) is enabled and your content has narration / dialogue, Seedance **will produce real spoken audio** — but the actual words spoken may **diverge from the dialogue you wrote in the prompt**. The model is creative, not literal: prompt dialogue inside double quotes is a strong hint, but for longer or more abstract content the model can omit lines, rephrase, fill silences with ambient sound, or substitute homophones.
+
+**This matters when** you're producing subtitled content for publish (drama / lessons / podcasts / dubbed shorts). It does **not** matter for vibe / no-dialogue clips where the audio just needs to match the mood.
+
+**Production pattern — when subtitle accuracy is part of the deliverable**:
+
+1. Generate the video with audio-on (this section), poll to completion
+2. Download the produced mp4, extract audio:
+   ```bash
+   ffmpeg -i out.mp4 -vn -acodec libmp3lame -b:a 128k audio.mp3
+   ```
+3. Upload `audio.mp3` to a public-read TOS bucket (see [library/volcengine-tos](../volcengine-tos/module.md))
+4. Submit to Seed-ASR for transcription (see [library/volcengine-speech](../volcengine-speech/module.md))
+5. Diff ASR transcript against your target subtitle text (Levenshtein / token-overlap / per-utterance match — pick a tolerance that fits your content)
+6. **Tag the result** and surface mismatches for editorial review before publish
+
+**Recommended status taxonomy** (mirrors the volcengine-speech module's labels — keep them consistent across your content pipeline):
+
+| label | meaning | next action |
+|---|---|---|
+| `asr_ok_text_match` | ASR succeeded; spoken words match target subtitle within tolerance | ship as-is |
+| `asr_ok_text_mismatch` | ASR succeeded; **Seedance spoke different words** than the target script | editorial review: keep ASR text, keep target text, or re-generate |
+| `video_incomplete` | source mp4 is partial / old / re-rendered; ASR returns far fewer utterances than the script expects | re-generate; the visible content doesn't represent the full scene |
+| `asr_unreliable` | audio clearly exists in playback but ASR output is garbled or empty | check audio sample rate / encoding; consider re-extracting at 16 kHz mono |
+| `asr_no_speech` | input audio is silent / music-only / non-speech | this script doesn't need ASR QA; mark `generate_audio: false` next time |
+
+**Critical production rules**:
+
+- **Don't silently overwrite target subtitles with ASR text.** ASR is diagnostic, not authoritative. Even when the model spoke "different but valid" words, your stored subtitle text is what should drive captions on publish — unless an editor explicitly accepts the ASR variant.
+- **Subtitles are a post-production layer**: target text from your script drives rendering; ASR utterance timestamps drive timing; mismatches surface for review.
+- **A "succeeded" Seedance task can still produce wrong-script audio** — don't treat `status: "succeeded"` as content QA. Audio-vs-script verification is a separate gate.
+
+---
+
 ## Polling vs callback
 
 For interactive UX (a user is waiting), polling every 30s is the documented pattern. For batch / pipeline / serverless use:
