@@ -2,7 +2,7 @@
 name: github-account
 version: 0.1.0
 category: dev-tool
-description: GitHub account — SSH alias, local git identity, and gh CLI conventions. Template for multi-account setups; duplicate this module per account (e.g. `github-personal`, `github-work`).
+description: GitHub account — gh keyring auth, local git identity, and optional SSH alias conventions. Template for multi-account setups; duplicate this module per account (e.g. `github-personal`, `github-work`).
 homepage: https://docs.github.com/en/account-and-profile
 tags: [github, git, multi-account]
 applies_to:
@@ -28,8 +28,8 @@ credentials:
     help: "Format: <USER_ID>+<USERNAME>@users.noreply.github.com. Use as git user.email to keep real email out of public commit history."
   GITHUB_SSH_ALIAS:
     type: text
-    required: true
-    help: "Host alias in ~/.ssh/config that maps to this account's SSH key (e.g. github-personal, github-work)"
+    required: false
+    help: "Optional Host alias in ~/.ssh/config that maps to this account's SSH key (e.g. github-personal, github-work). Prefer HTTPS + gh keyring unless you specifically need SSH."
   GITHUB_SSH_KEY_PATH:
     type: text
     required: false
@@ -40,63 +40,98 @@ credentials:
 
 This module captures the operational knowledge needed to work with one GitHub account when you have multiple. **Duplicate this module once per account** (e.g. `github-personal` and `github-work`), with each having its own `credentials.json`. The module's `name:` field should match its directory name (e.g. `github-personal`).
 
+Default recommendation: use `gh` multi-account login + HTTPS remotes for day-to-day work. Use SSH aliases only when you specifically need SSH keys, such as deploy-key style workflows or environments where HTTPS credential helpers are unavailable.
+
 ## ⚠️ Critical Constraints
 
-1. **The default `git@github.com:...` SSH host uses whichever key your SSH agent picks first** — usually the wrong account if you have multiple. Always use the explicit alias from `~/.ssh/config` (e.g. `git@github-personal:...`)
-2. **`gh repo create --source . --push` defaults the remote URL to `git@github.com:owner/repo.git`** — bypasses the SSH alias. Symptom: `ERROR: Permission to <owner>/<repo>.git denied to <other-account>`. Fix: `git remote set-url origin git@<alias>:<owner>/<repo>.git` after create, then push manually
-3. **Global git identity is whichever account you set up first** (`git config --global user.email`). For repos under other accounts, set local user.email per repo or commits get attributed to the wrong account
-4. **`gh auth status`** can show the right account as "Active" while git is using a different account's SSH key — these are two independent settings (gh API auth ≠ git SSH key selection)
+1. **`gh` auth and git commit identity are separate** — `gh auth switch -u <user>` changes API / HTTPS credentials, but it does not change `git config user.name` or `user.email`. Switch both together.
+2. **HTTPS remotes are the least surprising default for multi-account setups** — with `credential.https://github.com.helper = !gh auth git-credential`, git fetch / push follows the active `gh` account instead of whichever SSH key the agent picks.
+3. **Device-flow browser pages can end on GitHub 404 after authorization** — do not judge success from the browser tab. Run `gh auth status`; if the command runs in a sandbox that cannot read macOS Keychain, rerun it in a normal terminal.
+4. **Global git identity affects new repos only; local repo config wins** — pin long-lived repos with `git config --local user.email ...` so a global account switch does not pollute commit attribution.
+5. **SSH remains valid but needs explicit aliases** — the default `git@github.com:...` host uses whichever key your SSH agent picks first. If you use SSH, use `git@<GITHUB_SSH_ALIAS>:<owner>/<repo>.git`, never the ambiguous host.
+
+## One-time gh + Git setup
+
+```bash
+# 1. Login this account through GitHub CLI using HTTPS git protocol
+gh auth login -h github.com -p https -w
+
+# 2. Switch active gh account when multiple accounts exist
+gh auth switch -h github.com -u <GITHUB_USER>
+
+# 3. Make HTTPS git operations use gh's active account
+git config --global credential.https://github.com.helper ''
+git config --global credential.https://github.com.helper '!gh auth git-credential'
+
+# 4. Set this account as the current global commit identity
+git config --global user.name "<GITHUB_USER>"
+git config --global user.email "<GITHUB_NOREPLY_EMAIL>"
+```
+
+If you regularly switch between accounts, create one alias per account. Example for a personal account:
+
+```bash
+git config --global alias.use-personal \
+  '!gh auth switch -h github.com -u <GITHUB_USER> && git config --global user.name <GITHUB_USER> && git config --global user.email <GITHUB_NOREPLY_EMAIL> && echo active: <GITHUB_USER>'
+```
+
+Run it before working in repos for that account:
+
+```bash
+git use-personal
+```
 
 ## Setup checklist for a new repo on this account
 
 ```bash
-# 1. Create the local repo (or already cloned)
+# 1. Switch gh + global git identity to this account
+git use-<account-tag>
+
+# 2. Create the local repo
 mkdir my-new-project && cd my-new-project
 git init -b main
 
-# 2. Set local git identity (CRITICAL if your global identity is a different account)
+# 3. Pin local identity for long-lived repos
 git config --local user.name "<GITHUB_USER>"
-git config --local user.email "<GITHUB_USER_ID>+<GITHUB_USER>@users.noreply.github.com"
+git config --local user.email "<GITHUB_NOREPLY_EMAIL>"
 
-# 3. Verify gh CLI is on this account
-gh auth status
-gh auth switch -u <GITHUB_USER>   # if not active
+# 4. Create remote repo and push over HTTPS
+gh repo create <GITHUB_USER>/my-new-project --public --source . --remote origin --push --description "..."
+```
 
-# 4. Create remote repo + add remote (do NOT use --push if you want SSH alias)
-gh repo create <GITHUB_USER>/my-new-project --public --source . --description "..."
-# This creates the repo and adds remote — but with WRONG URL (git@github.com:...)
+If `gh repo create` leaves an SSH remote because global `gh` protocol was previously set to SSH, normalize it:
 
-# 5. Fix the remote URL to use SSH alias  ← THIS IS THE STEP EVERYONE FORGETS
-git remote set-url origin git@<GITHUB_SSH_ALIAS>:<GITHUB_USER>/my-new-project.git
-
-# 6. Now push works
-git add . && git commit -m "..." && git push -u origin main
+```bash
+git remote set-url origin https://github.com/<GITHUB_USER>/my-new-project.git
+git push -u origin main
 ```
 
 ## Cloning an existing repo on this account
 
 ```bash
-# Always specify the alias when cloning, not the GitHub web URL
-git clone git@<GITHUB_SSH_ALIAS>:<GITHUB_USER>/<repo>.git
-# NOT: git clone git@github.com:<GITHUB_USER>/<repo>.git  (will fail or use wrong key)
+git use-<account-tag>
 
-# Then immediately set local identity:
+# Prefer HTTPS with gh keyring
+git clone https://github.com/<GITHUB_USER>/<repo>.git
+
 cd <repo>
 git config --local user.name "<GITHUB_USER>"
-git config --local user.email "<GITHUB_USER_ID>+<GITHUB_USER>@users.noreply.github.com"
+git config --local user.email "<GITHUB_NOREPLY_EMAIL>"
 ```
 
 ## Fix existing repo with wrong remote
 
 ```bash
 git remote -v
-git remote set-url origin git@<GITHUB_SSH_ALIAS>:<GITHUB_USER>/<repo>.git
+
+# HTTPS default
+git remote set-url origin https://github.com/<GITHUB_USER>/<repo>.git
 git fetch origin
 ```
 
-## SSH config setup (one-time per account)
+## Optional SSH config setup
 
-If `<GITHUB_SSH_ALIAS>` isn't in your `~/.ssh/config` yet:
+Use this only when you want SSH instead of `gh`-managed HTTPS. If `<GITHUB_SSH_ALIAS>` isn't in your `~/.ssh/config` yet:
 
 ```
 Host <GITHUB_SSH_ALIAS>
@@ -109,14 +144,22 @@ Host <GITHUB_SSH_ALIAS>
 
 The key file referenced here is the **private** key for this account; the corresponding `.pub` is added to that account's GitHub SSH keys settings.
 
+When using SSH, clone and fix remotes with the alias:
+
+```bash
+git clone git@<GITHUB_SSH_ALIAS>:<GITHUB_USER>/<repo>.git
+git remote set-url origin git@<GITHUB_SSH_ALIAS>:<GITHUB_USER>/<repo>.git
+```
+
 ## Common error → fix
 
 | Error | Cause | Fix |
 |---|---|---|
-| `Permission to <owner>/X.git denied to <other-user>` | wrong SSH key / wrong remote URL | `git remote set-url origin git@<alias>:<owner>/X.git` |
-| Commits attributed to wrong account on github.com | local user.email is global default | re-run setup step 2 |
-| `gh: command needs different account` | gh active account is the other one | `gh auth switch -u <username>` |
-| `Could not read from remote repository` after `gh repo create --push` | the well-known --push URL bug | re-run setup step 5 then push manually |
+| `gh auth status` shows a browser auth 404 but login may have completed | GitHub device-flow authorize page expired after completing | Check `gh auth status` in a normal terminal; do not rely on the browser tab |
+| `no oauth token found for github.com` inside an AI sandbox | sandbox cannot read macOS Keychain / credential store | Re-run the check outside the sandbox or grant keyring access |
+| Commits attributed to wrong account on github.com | `user.email` is still another account's global value | set `git config --local user.email "<GITHUB_NOREPLY_EMAIL>"` |
+| `gh: command needs different account` | gh active account is the other one | `gh auth switch -h github.com -u <GITHUB_USER>` or run your `git use-*` alias |
+| `Permission to <owner>/X.git denied to <other-user>` | SSH remote uses the wrong key | switch remote to HTTPS, or use `git@<GITHUB_SSH_ALIAS>:<owner>/X.git` |
 
 ## Multi-account pattern in Trove
 
@@ -139,3 +182,10 @@ Project's `trove.md` references the right one:
 ```
 
 The AI sees the reference and knows which SSH alias + identity to use for any git/gh operation in this project — without any per-command flags.
+
+For repos that must remain on a specific identity even while the global account changes, pin local git identity once:
+
+```bash
+git config --local user.name "<GITHUB_USER>"
+git config --local user.email "<GITHUB_NOREPLY_EMAIL>"
+```
