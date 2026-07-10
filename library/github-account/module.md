@@ -11,7 +11,7 @@ applies_to:
   - initializing new local repos that will live under this account
   - troubleshooting "Permission denied" errors when wrong account's key is used
 trove_spec: "0.1"
-last_verified: "production · daily git push / gh CLI by maintainer (identity-config, no API to smoke)"
+last_verified: "production · RoboZephyr/robozephyr.com private repo bootstrap 2026-07-10 — gh create, SSH alias remote fix, REST visibility patch"
 
 credentials:
   GITHUB_USER:
@@ -95,8 +95,13 @@ git init -b main
 git config --local user.name "<GITHUB_USER>"
 git config --local user.email "<GITHUB_NOREPLY_EMAIL>"
 
-# 4. Create remote repo and push over HTTPS
-gh repo create <GITHUB_USER>/my-new-project --public --source . --remote origin --push --description "..."
+# 4. Choose visibility deliberately, then create remote repo
+#    Public website != public source repo. Use --private unless the source is intentionally OSS.
+gh repo create <GITHUB_USER>/my-new-project --private --source . --remote origin --description "..."
+
+# 5. Push after verifying the remote uses the intended account / protocol
+git remote -v
+git push -u origin main
 ```
 
 If `gh repo create` leaves an SSH remote because global `gh` protocol was previously set to SSH, normalize it:
@@ -104,6 +109,21 @@ If `gh repo create` leaves an SSH remote because global `gh` protocol was previo
 ```bash
 git remote set-url origin https://github.com/<GITHUB_USER>/my-new-project.git
 git push -u origin main
+```
+
+If this account uses an SSH alias instead of HTTPS, do not leave the remote on ambiguous `git@github.com`. `gh repo create --source . --push` may create the GitHub repo successfully, then fail the push with the wrong local SSH identity. Create without `--push`, set the alias remote, then push:
+
+```bash
+gh repo create <GITHUB_USER>/my-new-project --private --source . --remote origin
+git remote set-url origin git@<GITHUB_SSH_ALIAS>:<GITHUB_USER>/my-new-project.git
+git push -u origin main
+```
+
+If the repo was created with the wrong visibility, fix it immediately and verify via REST. `gh repo edit --visibility private` can fail mid-PATCH with an `EOF` while leaving visibility unchanged; the REST call is a reliable fallback:
+
+```bash
+gh api repos/<GITHUB_USER>/my-new-project -X PATCH -F private=true
+gh api repos/<GITHUB_USER>/my-new-project --jq '.visibility'  # private
 ```
 
 ## Cloning an existing repo on this account
@@ -160,6 +180,8 @@ git remote set-url origin git@<GITHUB_SSH_ALIAS>:<GITHUB_USER>/<repo>.git
 | Commits attributed to wrong account on github.com | `user.email` is still another account's global value | set `git config --local user.email "<GITHUB_NOREPLY_EMAIL>"` |
 | `gh: command needs different account` | gh active account is the other one | `gh auth switch -h github.com -u <GITHUB_USER>` or run your `git use-*` alias |
 | `Permission to <owner>/X.git denied to <other-user>` | SSH remote uses the wrong key | switch remote to HTTPS, or use `git@<GITHUB_SSH_ALIAS>:<owner>/X.git` |
+| New repo source accidentally public | `gh repo create --public` was copied from a template / habit | `gh api repos/<owner>/<repo> -X PATCH -F private=true`; then verify `gh api repos/<owner>/<repo> --jq '.visibility'` |
+| Repo exists but first push says `Permission to <owner>/<repo>.git denied to <other-user>` | `gh repo create --source --push` added `git@github.com:<owner>/<repo>.git`, so SSH selected another account | `git remote set-url origin git@<GITHUB_SSH_ALIAS>:<owner>/<repo>.git && git push -u origin main` |
 
 ## Multi-account pattern in Trove
 

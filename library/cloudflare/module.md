@@ -12,7 +12,7 @@ applies_to:
   - cache purge after deploy
   - any task using `wrangler` CLI
 trove_spec: "0.1"
-last_verified: "production · trove.robozephyr.com deploy 2026-05-15 — CF Pages custom domain + DNS CNAME on robozephyr.com zone, SSL active in 1 min. Plus send.<sub>.<root>.com DNS write via Resend×Cloudflare cross-module (see SPEC §10)"
+last_verified: "production · robozephyr.com / lark-skills / launch-pilot / mingxin Pages deploys 2026-07-10 — npx wrangler + Trove token in non-interactive env, direct upload while source repos private"
 
 credentials:
   CLOUDFLARE_API_TOKEN:
@@ -36,9 +36,10 @@ credentials:
 1. **`CLOUDFLARE_API_TOKEN` ≠ 老式 Global API Key**——所有新代码都用 token。Token 是 scoped 的（带固定权限），换 endpoint 失败时第一反应是「token 有这权限吗」
 2. **几乎所有 REST API 路径都带 `/accounts/{account_id}/...`**——单独有 token 不够，必须配套 `CLOUDFLARE_ACCOUNT_ID`
 3. **DNS / cache purge 还要 `CLOUDFLARE_ZONE_ID`**（per-domain）
-4. **wrangler 优先读 env**：`CLOUDFLARE_API_TOKEN` 在 env 里 → 直接用，无需 `wrangler login`
+4. **wrangler 优先读 env**：`CLOUDFLARE_API_TOKEN` 在 env 里 → 直接用，无需 `wrangler login`。非交互环境必须有这个 env，否则 wrangler 会拒绝执行。
 5. **API 返回结构**：成功 = `{ success: true, result: ... }`；错误 = `{ success: false, errors: [{ code, message }] }`。**永远先查 `success` 再用 `result`**
-6. **Pages 部署最快路径**：`wrangler pages deploy <build-dir> --project-name <name>` 一行命令；不需要先 `pages project create` 也能 deploy（wrangler 会自动建）
+6. **Pages 部署最快路径**：已有 Pages project 时，`npx wrangler pages deploy <build-dir> --project-name <name>` 一行命令。全新 project 若报 `Project not found (8000007)`，先走下面的显式 API create。
+7. **`.wrangler/` 是本地 cache / account state，不进 Git**：静态站 repo 一定加 `.wrangler/` 到 `.gitignore`，只提交 `wrangler.toml`、源码和构建配置。
 
 ---
 
@@ -67,6 +68,33 @@ npx wrangler pages deploy ./dist \
 
 # 输出：✨ Successfully published to https://<random>.my-site.pages.dev
 ```
+
+**非交互 / AI agent 环境部署**：全局没有 `wrangler` 很正常，用 `npx wrangler`。不要指望 `wrangler login`，直接从 Trove credentials 注入 token；同时显式传单行 commit message，避免坑 3。
+
+```bash
+CLOUDFLARE_API_TOKEN="$(jq -r '.CLOUDFLARE_API_TOKEN' ~/.trove/cloudflare/credentials.json)" \
+  npx wrangler pages deploy <build-dir> \
+    --project-name <pages-project> \
+    --branch main \
+    --commit-message "$(git log -1 --pretty=%s)" \
+    --commit-dirty=false
+```
+
+静态目录型站点的最小 Git 形状：
+
+```gitignore
+.wrangler/
+.DS_Store
+```
+
+```toml
+# wrangler.toml
+name = "<pages-project>"
+pages_build_output_dir = "."
+compatibility_date = "2026-01-01"
+```
+
+GitHub repo visibility 和 Pages serving 是两回事：direct upload 的 Pages project 可以继续公开服务，即使源码仓库是 private。不要因为网站是公开的，就默认把源码 repo 设成 public。
 
 **坑 2：custom domain 的 CNAME 必须指 `<project-name>-<random>.pages.dev` 而非通用 `<project-name>.pages.dev`**。Pages 自动给每个 project 分配一个不同的子域（如 `trove-7vp.pages.dev`），看 deploy 命令输出。指通用域会让 SSL 一直 `verification_data: "CNAME record not set"` 不 active，即使 API 看 record 是好的。
 
