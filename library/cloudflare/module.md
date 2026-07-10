@@ -157,6 +157,46 @@ chmod +x scripts/deploy.sh
 - Pages 单文件 ≤ 25 MB，单 deploy 总文件数 ≤ 20000；超了静默失败，没有提前校验
 - Pages 自动启用 HTTPS，但自定义域名要去 dash 加（API 路径：`/accounts/{aid}/pages/projects/{name}/domains`）
 
+### 备用域名 301 到 canonical 域名
+
+如果目标是「`old-domain.com` 访问后跳到 `canonical.com`」，不要只把两个域名都绑定到同一个 Pages project。Pages custom domain / DNS CNAME 只会让两个域名服务同一份 HTML，**不会产生 HTTP redirect**。验证首跳必须看 `curl -I https://old-domain.com`：如果是 `200` 且没有 `Location:`，它只是镜像，不是跳转。
+
+生产验证过的路径（`caomingzhe.cn` → `robozephyr.com`，2026-07-10）：
+
+1. DNS 保持 proxied CNAME 到 Pages project（橙云），确保请求经过 Cloudflare
+2. 用 Page Rule 的 `forwarding_url` 做 301：
+
+```bash
+curl -fsS -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/pagerules" \
+  -H "Authorization: Bearer $CF_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "targets": [{
+      "target": "url",
+      "constraint": {"operator": "matches", "value": "*old-domain.com/*"}
+    }],
+    "actions": [{
+      "id": "forwarding_url",
+      "value": {"url": "https://canonical.com/$2", "status_code": 301}
+    }],
+    "priority": 1,
+    "status": "active"
+  }'
+```
+
+`*old-domain.com/*` 的 `$2` 是 path 部分；query string 会随 Page Rule forwarding 保留。验证：
+
+```bash
+curl -I https://old-domain.com
+# HTTP/2 301
+# location: https://canonical.com/
+
+curl -I 'https://old-domain.com/projects/test?x=1'
+# location: https://canonical.com/projects/test?x=1
+```
+
+**踩坑记录**：在这个 Pages CNAME 场景里，创建 `http_request_dynamic_redirect` zone ruleset API 返回 `success: true`，规则也能读回，但线上首跳仍是 `200`，没有命中 redirect。最终 Page Rule 生效后，把未生效的 Dynamic Redirect ruleset 删掉，避免以后排查混淆。
+
 ### 换 source repo（已有 project，reuse name + domains）
 
 **⚠️ Critical trap**: `PATCH /pages/projects/{name}` 把 `source.config.repo_name` / `repo_id` 写进 body，**CF 返回 `success: true` 但不更新 source 字段**。GET 回来还是老 repo。`build_config` 这种字段 PATCH 正常生效——只有 `source` 这块是 silently read-only（连 explicit `repo_id` + `owner_id` 都没用）。Dashboard 同样**没有** "change source / disconnect" 按钮（Settings → General 页只有 Rename / Notifications / Preview access / Delete）。
