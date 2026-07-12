@@ -12,7 +12,7 @@ applies_to:
   - cache purge after deploy
   - any task using `wrangler` CLI
 trove_spec: "0.1"
-last_verified: "production · robozephyr.com / lark-skills / launch-pilot / mingxin Pages deploys 2026-07-10 — npx wrangler + Trove token in non-interactive env, direct upload while source repos private"
+last_verified: "production · multiple CF Pages direct-upload deploys 2026-07-10 — npx wrangler + Trove token in non-interactive env, direct upload while source repos private"
 
 credentials:
   CLOUDFLARE_API_TOKEN:
@@ -161,7 +161,7 @@ chmod +x scripts/deploy.sh
 
 如果目标是「`old-domain.com` 访问后跳到 `canonical.com`」，不要只把两个域名都绑定到同一个 Pages project。Pages custom domain / DNS CNAME 只会让两个域名服务同一份 HTML，**不会产生 HTTP redirect**。验证首跳必须看 `curl -I https://old-domain.com`：如果是 `200` 且没有 `Location:`，它只是镜像，不是跳转。
 
-生产验证过的路径（`caomingzhe.cn` → `robozephyr.com`，2026-07-10）：
+生产验证过的路径（personal alternate domain → canonical project domain，2026-07-10）：
 
 1. DNS 保持 proxied CNAME 到 Pages project（橙云），确保请求经过 Cloudflare
 2. 用 Page Rule 的 `forwarding_url` 做 301：
