@@ -1,18 +1,20 @@
 ---
 name: cloudflare
-version: 0.1.0
+version: 0.2.0
 category: infra
-description: Cloudflare API & Wrangler for Pages deploy, Workers/R2/KV, DNS, cache purge
+description: Cloudflare API & Wrangler for Pages deploy, Workers/R2/KV, DNS, cache purge, Access and API token management
 homepage: https://developers.cloudflare.com/api/
-tags: [hosting, cdn, dns, workers, pages, r2, kv]
+tags: [hosting, cdn, dns, workers, pages, r2, kv, access, zero-trust, api-token]
 applies_to:
   - deploying static sites to Cloudflare Pages
   - managing Workers / R2 buckets / KV namespaces
   - DNS record CRUD via API
   - cache purge after deploy
+  - Cloudflare Access applications, policies and authentication logs
+  - scoped account API token creation, rotation and revocation
   - any task using `wrangler` CLI
 trove_spec: "0.1"
-last_verified: "production · multiple CF Pages direct-upload deploys 2026-07-10 — npx wrangler + Trove token in non-interactive env, direct upload while source repos private"
+last_verified: "production · multiple CF Pages direct-upload deploys 2026-07-10 — npx wrangler + Trove token in non-interactive env while source repositories remained private. 2026-09-02 — account-token/permission-group listing and Access dashboard authentication-log query verified"
 
 credentials:
   CLOUDFLARE_API_TOKEN:
@@ -40,6 +42,81 @@ credentials:
 5. **API 返回结构**：成功 = `{ success: true, result: ... }`；错误 = `{ success: false, errors: [{ code, message }] }`。**永远先查 `success` 再用 `result`**
 6. **Pages 部署最快路径**：已有 Pages project 时，`npx wrangler pages deploy <build-dir> --project-name <name>` 一行命令。全新 project 若报 `Project not found (8000007)`，先走下面的显式 API create。
 7. **`.wrangler/` 是本地 cache / account state，不进 Git**：静态站 repo 一定加 `.wrangler/` 到 `.gitignore`，只提交 `wrangler.toml`、源码和构建配置。
+8. **不要用 Global API Key 做临时任务**。优先由长期管理 Token 签发最小权限、短 TTL 的 account-owned API Token，用完立即删除
+9. **`Account API Tokens: Edit` 只能管理 `/accounts/{account_id}/tokens`**，不能修改 `/user/tokens/{token_id}`，也不能让 user-owned Token 通过 API 给自己扩权；后者需要对应的 User API Token 权限或 Dashboard 操作
+
+---
+
+## 临时账户 API Token（推荐的“单次任务”模式）
+
+Cloudflare 没有严格意义上“调用一次即失效”的 API Key。最接近且推荐的做法是：由长期管理 Token 创建一个只活 10–30 分钟的 **account-owned API Token**，执行任务后无论成功失败都立即 DELETE。
+
+### 管理 Token 与任务 Token 的分工
+
+- 长期管理 Token：保留 `Account API Tokens: Edit`，负责列权限组、创建和删除临时 Token
+- 临时任务 Token：只包含本次 endpoint 所需的最小权限，只绑定目标 account/zone，设置 `expires_on`，必要时再加 `condition.request_ip`
+- 临时 Token 的 `result.value` 只在创建响应中出现一次；只放进进程环境或权限为 `0600` 的临时文件，不打印、不提交 Git、不写回长期 credentials
+- 清理必须放在 shell `trap` 或程序 `finally` 中；TTL 是兜底，DELETE 才是正常收尾
+
+### API 流程
+
+```text
+GET    /accounts/{account_id}/tokens/permission_groups
+POST   /accounts/{account_id}/tokens
+       body: name + least-privilege policies + expires_on [+ request_ip]
+CALL   本次业务 API（Authorization: Bearer <temporary token>）
+DELETE /accounts/{account_id}/tokens/{temporary_token_id}
+```
+
+创建 account-owned Token 需要调用者拥有 `Account API Tokens: Write/Edit`，Cloudflare 账户侧还要求 Super Administrator。权限组 ID 不要硬编码，先按 `name` 从 `permission_groups` 接口动态解析。
+
+account scope 的资源写法：
+
+```json
+{
+  "effect": "allow",
+  "permission_groups": [{ "id": "<resolved-permission-group-id>" }],
+  "resources": {
+    "com.cloudflare.api.account.<account-id>": "*"
+  }
+}
+```
+
+zone scope 则使用精确 zone 资源，不要默认授权整个账户的所有区域：
+
+```json
+{
+  "com.cloudflare.api.account.zone.<zone-id>": "*"
+}
+```
+
+### 选择哪种凭据
+
+| 场景 | 推荐凭据 |
+|---|---|
+| 临时排障、一次性改配置 | 10–30 分钟 account-owned Token，用完 DELETE |
+| CI/CD、Terraform、长期集成 | 独立 account-owned Token，固定最小权限并设置轮换/到期 |
+| 代表个人做临时脚本 | scoped user-owned Token |
+| 修改当前 user-owned Token 自身权限 | Dashboard，或另一个具备 User API Token 管理权限的凭据 |
+| Global API Key | 仅在目标 endpoint 确实不支持 Token 且没有替代方案时使用 |
+
+### Access 日志鉴权兼容性
+
+如果 active 的 user-owned Bearer Token 已包含 `Access: Audit Logs Read`，但 `GET /accounts/{account_id}/access/logs/access_requests` 仍返回 `10000 Authentication error`：
+
+1. 先在 Dashboard 确认权限已保存，并用 `GET /user/tokens/verify` 验证 Token 状态
+2. 在 `Zero Trust → Insights → Logs → Access authentication logs` 验证账户本身能否查询日志
+3. 自动化场景优先签发短 TTL 的 account-owned Token 做兼容性验证
+4. 仍失败再走 Dashboard/Support；不要直接暴露 Global API Key
+
+不要把这个 endpoint 的 `10000` 一律解释为“权限没保存”。
+
+### Access OTP 收不到邮件的排障顺序
+
+1. 先读取 Access application/policy，确认邮箱精确命中 Allow，并确认 OTP IdP 已启用
+2. 查 Access authentication logs；注意：用户只请求验证码、但没有输入验证码时，**不会留下认证日志**
+3. 让用户检查垃圾邮件并允许 `noreply@notify.cloudflare.com` / `notify.cloudflare.com`，再请求一枚新验证码
+4. Allow 已命中、仍始终收不到时，优先怀疑历史退信导致 Cloudflare suppression；联系 Cloudflare Support 清除抑制
 
 ---
 
