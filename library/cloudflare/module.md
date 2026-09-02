@@ -1,6 +1,6 @@
 ---
 name: cloudflare
-version: 0.2.0
+version: 0.2.1
 category: infra
 description: Cloudflare API & Wrangler for Pages deploy, Workers/R2/KV, DNS, cache purge, Access and API token management
 homepage: https://developers.cloudflare.com/api/
@@ -14,7 +14,7 @@ applies_to:
   - scoped account API token creation, rotation and revocation
   - any task using `wrangler` CLI
 trove_spec: "0.1"
-last_verified: "production · multiple CF Pages direct-upload deploys 2026-07-10 — npx wrangler + Trove token in non-interactive env while source repositories remained private. 2026-09-02 — account-token/permission-group listing and Access dashboard authentication-log query verified"
+last_verified: "production · multiple CF Pages direct-upload deploys 2026-07-10 — npx wrangler + Trove token in non-interactive env while source repositories remained private. 2026-09-02 — account-token/permission-group listing, Access dashboard authentication-log query, GitHub OAuth IdP creation/test and application allowed_idps update verified"
 
 credentials:
   CLOUDFLARE_API_TOKEN:
@@ -117,6 +117,59 @@ zone scope 则使用精确 zone 资源，不要默认授权整个账户的所有
 2. 查 Access authentication logs；注意：用户只请求验证码、但没有输入验证码时，**不会留下认证日志**
 3. 让用户检查垃圾邮件并允许 `noreply@notify.cloudflare.com` / `notify.cloudflare.com`，再请求一枚新验证码
 4. Allow 已命中、仍始终收不到时，优先怀疑历史退信导致 Cloudflare suppression；联系 Cloudflare Support 清除抑制
+
+### Access GitHub 登录：OAuth App + IdP API
+
+Cloudflare 的 GitHub identity provider 使用 **GitHub OAuth App**，不是 GitHub Actions 的 OIDC，也不是 Access 的 Generic OIDC。两侧自动化边界不同：
+
+- GitHub OAuth App 的注册和 client secret 生成在 GitHub Organization / Account Settings UI 完成；不要假设 GitHub REST / GraphQL API 能创建它
+- Cloudflare 侧的 identity provider 创建、应用绑定和验证可以走 API
+
+OAuth App 的关键字段：
+
+```text
+Homepage URL:
+https://<team-name>.cloudflareaccess.com
+
+Authorization callback URL:
+https://<team-name>.cloudflareaccess.com/cdn-cgi/access/callback
+```
+
+创建 Cloudflare IdP 需要 `Access Identity Providers: Edit`：
+
+```http
+POST /accounts/{account_id}/access/identity_providers
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "GitHub",
+  "type": "github",
+  "config": {
+    "client_id": "<github-oauth-client-id>",
+    "client_secret": "<github-oauth-client-secret>"
+  }
+}
+```
+
+`client_secret` 只在内存或受控 secret store 中传递；不要打印、提交 Git 或写进 Trove 模块正文。创建后立即测试：
+
+```text
+https://<team-name>.cloudflareaccess.com/cdn-cgi/access/test-idp/<idp-id>
+```
+
+**常见漏项：IdP 创建成功不代表登录页会显示它。** 先读取目标 Access application：
+
+```http
+GET /accounts/{account_id}/access/apps/{app_id}
+```
+
+- `allowed_idps` 为空时，默认允许账户中配置的全部 IdP
+- `allowed_idps` 已显式列出时，用 `PUT /accounts/{account_id}/access/apps/{app_id}` 保留现有 application 字段，并把 GitHub IdP ID 加进数组
+- 多个 IdP 时把 `auto_redirect_to_identity` 设为 `false`，否则无法显示登录方式选择页
+- 更新 application 后再次 GET，确认 IdP 数组；再回读 policy，确认 `include` / `exclude` / `require` 没有被误改
+
+GitHub 登录只改变**身份认证方式**。如果授权策略仍是精确邮箱 Allow，新增 IdP 不会自动放行整个 GitHub Organization。只有明确要按组织/团队授权时，才另行修改 Access policy；不要把“能用 GitHub 登录”和“GitHub 组织成员都有访问权限”混为一谈。
 
 ---
 
